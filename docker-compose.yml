@@ -15,5 +15,52 @@ services:
       timeout: 5s
       retries: 5
 
+  migrate:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://webhook:webhook@postgres:5432/webhook_inspector
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  app:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql+psycopg://webhook:webhook@postgres:5432/webhook_inspector
+      BLOB_STORAGE_PATH: /data/blobs
+      LOG_LEVEL: INFO
+      ENVIRONMENT: local
+    ports:
+      - "8000:8000"
+    volumes:
+      - blob_data:/data/blobs
+    command: ["uvicorn", "webhook_inspector.web.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+  ingestor:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql+psycopg://webhook:webhook@postgres:5432/webhook_inspector
+      BLOB_STORAGE_PATH: /data/blobs
+      LOG_LEVEL: INFO
+      ENVIRONMENT: local
+    ports:
+      - "8001:8001"
+    volumes:
+      - blob_data:/data/blobs
+    command: ["uvicorn", "webhook_inspector.web.ingestor.main:app", "--host", "0.0.0.0", "--port", "8001"]
+
 volumes:
   postgres_data:
+  blob_data:
