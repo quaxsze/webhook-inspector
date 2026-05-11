@@ -233,7 +233,7 @@ GitHub Actions, **3 workflows** :
 ### DNS / TLS
 
 - Domaine perso (à acheter, ~10€/an).
-- Cloudflare en proxy : TLS automatique, DDoS basique gratuit, cache statique.
+- Cloudflare en proxy : TLS automatique, DDoS L3/L4 gratuit, cache statique. **Pas de règles WAF custom V1** (ajoutées en V4).
 - Deux sous-domaines : `hook.<domain>` (ingestor), `app.<domain>` (UI).
 
 ## Error handling & dégradation
