@@ -142,7 +142,7 @@ find tests -type d -exec touch {}/__init__.py \;
 - [ ] **Step 1.2: Add dependencies via uv**
 
 ```bash
-uv add fastapi 'uvicorn[standard]' gunicorn sqlmodel psycopg 'psycopg[binary]' alembic httpx pydantic-settings jinja2 structlog opentelemetry-distro opentelemetry-exporter-otlp opentelemetry-instrumentation-fastapi opentelemetry-instrumentation-sqlalchemy opentelemetry-instrumentation-psycopg
+uv add fastapi 'uvicorn[standard]' gunicorn sqlmodel 'psycopg[binary]' alembic httpx pydantic-settings jinja2 structlog opentelemetry-distro opentelemetry-exporter-otlp opentelemetry-instrumentation-fastapi opentelemetry-instrumentation-sqlalchemy opentelemetry-instrumentation-psycopg
 uv add --dev pytest pytest-asyncio pytest-cov ruff mypy pre-commit testcontainers
 ```
 
@@ -2475,6 +2475,20 @@ from webhook_inspector.web.app.deps import get_create_endpoint
 router = APIRouter()
 
 
+def hook_base_url(request: Request) -> str:
+    """Derive the ingestor base URL from the app base URL.
+
+    Prod: app.<domain>  →  hook.<domain>
+    Local docker-compose: localhost:8000 → localhost:8001
+    """
+    base = str(request.base_url).rstrip("/")
+    if "://app." in base:
+        return base.replace("://app.", "://hook.")
+    if ":8000" in base:
+        return base.replace(":8000", ":8001")
+    return base  # fallback (single-host dev)
+
+
 class CreateEndpointResponse(BaseModel):
     url: str
     expires_at: str
@@ -2487,9 +2501,8 @@ async def create_endpoint(
     use_case: CreateEndpoint = Depends(get_create_endpoint),
 ) -> CreateEndpointResponse:
     endpoint = await use_case.execute()
-    hook_base = str(request.base_url).rstrip("/").replace("://app.", "://hook.")
     return CreateEndpointResponse(
-        url=f"{hook_base}/h/{endpoint.token}",
+        url=f"{hook_base_url(request)}/h/{endpoint.token}",
         expires_at=endpoint.expires_at.isoformat(),
         token=endpoint.token,
     )
@@ -2835,20 +2848,24 @@ Expected: 404 on the GET path = route not yet defined.
 
 - [ ] **Step 17.3: Add route to app**
 
-Edit `src/webhook_inspector/web/app/routes.py` — add at the bottom:
+Edit `src/webhook_inspector/web/app/routes.py`. **Merge new imports at the top of the file** (alongside existing imports), then **append the new code at the bottom**:
 
 ```python
-from fastapi import HTTPException
-from pydantic import BaseModel
+# === merge at top, with existing imports ===
 from uuid import UUID
+
+from fastapi import HTTPException
 
 from webhook_inspector.application.use_cases.list_requests import (
     EndpointNotFoundError,
     ListRequests,
 )
 from webhook_inspector.web.app.deps import get_list_requests
+```
 
+Then append at the bottom of the file:
 
+```python
 class RequestItem(BaseModel):
     id: UUID
     method: str
@@ -3026,16 +3043,20 @@ async def stream_for_token(
         yield f"event: message\ndata: {json.dumps(payload)}\n\n"
 ```
 
-Edit `src/webhook_inspector/web/app/routes.py` — add at the bottom:
+Edit `src/webhook_inspector/web/app/routes.py`. **Merge new imports at the top of the file** (alongside existing imports), then **append the new code at the bottom**:
 
 ```python
+# === merge at top, with existing imports ===
 from fastapi.responses import StreamingResponse
 
 from webhook_inspector.infrastructure.notifications.postgres_notifier import PostgresNotifier
 from webhook_inspector.web.app.deps import _session_factory, get_notifier
 from webhook_inspector.web.app.sse import stream_for_token
+```
 
+Then append at the bottom of the file:
 
+```python
 @router.get("/stream/{token}")
 async def sse_stream(
     token: str,
@@ -3202,12 +3223,9 @@ app.state.templates = templates
 app.include_router(router)
 ```
 
-Edit `src/webhook_inspector/web/app/routes.py` — add at the bottom:
+Edit `src/webhook_inspector/web/app/routes.py`. **Merge `from fastapi.responses import HTMLResponse` at the top** with existing imports. Then append at the bottom:
 
 ```python
-from fastapi.responses import HTMLResponse
-
-
 @router.get("/{token}", response_class=HTMLResponse)
 async def viewer(
     token: str,
@@ -3220,13 +3238,12 @@ async def viewer(
         raise HTTPException(status_code=404, detail="endpoint not found") from e
 
     templates = request.app.state.templates
-    hook_base = str(request.base_url).rstrip("/").replace("://app.", "://hook.")
     return templates.TemplateResponse(
         request=request,
         name="viewer.html",
         context={
             "token": token,
-            "hook_url": f"{hook_base}/h/{token}",
+            "hook_url": f"{hook_base_url(request)}/h/{token}",
             "initial_requests": [
                 {
                     "method": r.method,
@@ -3764,18 +3781,7 @@ docker compose ps
 curl -sX POST http://localhost:8000/api/endpoints | python -m json.tool
 ```
 
-Expected: JSON with `url` containing `http://localhost:8001/h/<token>` (note: hook URL won't auto-swap to port 8001 since we use the request base URL — for local, the URL will be `http://localhost:8000/h/<token>`. That's OK in dev; the user will manually use port 8001 or we can hardcode it. Update `routes.py` if needed; for simplicity, accept the URL points to app and the user knows to swap host).
-
-**Patch the URL helper for dev convenience.** In `routes.py`, replace the helper logic:
-
-```python
-def _hook_base_url(request: Request) -> str:
-    base = str(request.base_url).rstrip("/")
-    # If app is on :8000, hook is on :8001 in dev compose
-    return base.replace(":8000", ":8001")
-```
-
-Use it in both `create_endpoint` and `viewer`.
+Expected: JSON with `url` containing `http://localhost:8001/h/<token>` (the `hook_base_url` helper introduced in Task 15 handles the `:8000` → `:8001` swap automatically for docker-compose dev).
 
 - [ ] **Step 22.4: Smoke test full stack manually**
 
@@ -3792,7 +3798,7 @@ Expected: viewer page shows 1 request. Send another curl to see it appear live (
 - [ ] **Step 22.5: Commit**
 
 ```bash
-git add Dockerfile docker-compose.yml src/webhook_inspector/web/app/routes.py
+git add Dockerfile docker-compose.yml
 git commit -m "chore(docker): multi-stage Dockerfile and full docker-compose stack"
 ```
 
