@@ -14,7 +14,7 @@ L'objectif **n'est pas** de concurrencer Webhook.site, mais de fournir un produi
 
 ### Critères de réussite
 
-1. La V1 est en ligne et utilisable en moins de 3 semaines.
+1. La V1 est en ligne et utilisable en moins de 3 semaines (temps partiel, ~10h/semaine).
 2. Au moins 1 incident production est vécu et postmortem dans les 3 premiers mois.
 3. Chaque phase (V1 → V7) ajoute **un** apprentissage DevOps majeur, mesurable.
 4. Le produit reste *utilisable* à toutes les phases (pas de régression UX).
@@ -69,6 +69,11 @@ L'objectif **n'est pas** de concurrencer Webhook.site, mais de fournir un produi
 - **Endpoints** : 7 jours après création (`expires_at = created_at + 7d`).
 - **Requêtes** : supprimées avec l'endpoint (`ON DELETE CASCADE`).
 - **Bodies > 8KB sur GCS** : lifecycle policy GCS = auto-delete 7 jours après upload.
+
+### Limites bodies (deux seuils distincts)
+
+- **8 KB** : seuil au-delà duquel le body est offloadé vers GCS (au lieu d'être inline dans Postgres `body_preview`).
+- **10 MB** : limite max acceptée par l'ingestor. Au-delà, `413 Payload Too Large` renvoyé avant lecture complète.
 
 ## Architecture
 
@@ -162,7 +167,7 @@ CREATE INDEX idx_requests_endpoint_time ON requests(endpoint_id, received_at DES
    └─ OK → continue
 3. capture method, headers, query, body, IP
 4. si body > 8KB : upload GCS (clé = {endpoint_id}/{request_id}), stocke gcs_key
-5. INSERT requests + UPDATE endpoints.request_count
+5. INSERT requests + UPDATE endpoints.request_count (transaction atomique)
 6. NOTIFY new_request '<endpoint_id>:<request_id>' (Postgres LISTEN/NOTIFY)
 7. renvoie 200 {"ok":true} (< 100ms p95 cible)
 
@@ -186,10 +191,10 @@ Chaque phase ajoute **un** apprentissage DevOps majeur, pas dix.
 
 | Phase | Feature produit | Apprentissage DevOps cible |
 |-------|-----------------|----------------------------|
-| **V1** | MVP (3 endpoints + viewer SSE) | Cloud Run, Cloud SQL, Terraform basics, GitHub Actions, domaine + TLS |
-| **V2** | Custom response (status/body) + replay | Secrets Manager, OTEL traces/metrics/logs, dashboards Cloud Monitoring |
+| **V1** | MVP (5 endpoints : 3 API + viewer HTML + SSE stream) | Cloud Run, Cloud SQL, Terraform basics, GitHub Actions, domaine + TLS, OTEL auto-instrumentation |
+| **V2** | Custom response (status/body) + replay | Secrets Manager avancé, **métriques OTEL custom** + dashboards Cloud Monitoring + alerting policies |
 | **V3** | Forward vers une URL cible | Pub/Sub, worker async, dead-letter queue, retry exponentiel, idempotency |
-| **V4** | Rate limiting + abuse protection | Cloudflare WAF, IP reputation, Redis distribué, alerting Discord/PagerDuty |
+| **V4** | Rate limiting + abuse protection | Cloudflare WAF, IP reputation, Memorystore Redis (partagé entre instances ingestor), alerting Discord/PagerDuty |
 | **V5** | Auth Google OAuth + URLs claimées + historique long | OAuth flow, IAM, multi-tenant data, RGPD retention |
 | **V6** | SLO formels + error budgets + status page publique | Pratiques SRE, SLI definition, postmortems blameless |
 | **V7+** | Multi-région, blue/green deploys, chaos engineering | Cloud Load Balancer, traffic splitting, fault injection |
