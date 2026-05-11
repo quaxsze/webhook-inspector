@@ -31,10 +31,11 @@ async def test_sse_delivers_new_request_event(monkeypatch, database_url, engine,
     body_parts: list[bytes] = []
 
     async def run_sse():
-        """Run the SSE stream endpoint directly via ASGI, capturing body chunks."""
-        from starlette.testclient import TestClient  # noqa: F401
+        """Run the SSE stream endpoint directly via ASGI, capturing body chunks.
 
-        # Use httpx with the stream — ASGITransport accumulates chunks.
+        ASGITransport cannot interleave streaming with external sends, so we
+        drive the ASGI interface manually and collect body chunks as they arrive.
+        """
         # We run the app via ASGI directly to capture streaming chunks.
         scope = {
             "type": "http",

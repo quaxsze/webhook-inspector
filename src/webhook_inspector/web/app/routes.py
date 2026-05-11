@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
 from webhook_inspector.application.use_cases.create_endpoint import CreateEndpoint
@@ -115,4 +115,35 @@ async def sse_stream(
         merged(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.get("/{token}", response_class=HTMLResponse)
+async def viewer(
+    token: str,
+    request: Request,
+    use_case: ListRequests = Depends(get_list_requests),  # noqa: B008
+):
+    try:
+        initial = await use_case.execute(token=token, limit=50)
+    except EndpointNotFoundError as e:
+        raise HTTPException(status_code=404, detail="endpoint not found") from e
+
+    templates = request.app.state.templates
+    return templates.TemplateResponse(
+        request=request,
+        name="viewer.html",
+        context={
+            "token": token,
+            "hook_url": f"{hook_base_url(request)}/h/{token}",
+            "initial_requests": [
+                {
+                    "method": r.method,
+                    "path": r.path,
+                    "body_size": r.body_size,
+                    "received_at": r.received_at.isoformat(),
+                }
+                for r in initial
+            ],
+        },
     )

@@ -1,7 +1,7 @@
-import json
 from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING
+from pathlib import Path
 
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from webhook_inspector.application.use_cases.list_requests import EndpointNotFoundError
@@ -13,8 +13,8 @@ from webhook_inspector.infrastructure.repositories.request_repository import (
     PostgresRequestRepository,
 )
 
-if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession  # noqa: F401
+_TEMPLATES_DIR = Path(__file__).parent / "templates"
+_env = Environment(loader=FileSystemLoader(str(_TEMPLATES_DIR)), autoescape=select_autoescape())
 
 
 async def stream_for_token(
@@ -22,25 +22,27 @@ async def stream_for_token(
     session_factory: async_sessionmaker,
     notifier: PostgresNotifier,
 ) -> AsyncIterator[str]:
-    # Resolve endpoint
     async with session_factory() as session:
         endpoint = await PostgresEndpointRepository(session).find_by_token(token)
     if endpoint is None:
         raise EndpointNotFoundError(token)
 
-    # Heartbeat + initial connect comment
     yield ": connected\n\n"
 
+    fragment = _env.get_template("request_fragment.html")
     async for request_id in notifier.subscribe(endpoint.id):
         async with session_factory() as session:
             req = await PostgresRequestRepository(session).find_by_id(request_id)
         if req is None:
             continue
-        payload = {
-            "id": str(req.id),
-            "method": req.method,
-            "path": req.path,
-            "received_at": req.received_at.isoformat(),
-            "body_size": req.body_size,
-        }
-        yield f"event: message\ndata: {json.dumps(payload)}\n\n"
+        html = fragment.render(
+            req={
+                "method": req.method,
+                "path": req.path,
+                "body_size": req.body_size,
+                "received_at": req.received_at.isoformat(),
+            }
+        )
+        # SSE multi-line data: one "data:" per line
+        encoded = "\n".join(f"data: {line}" for line in html.splitlines())
+        yield f"event: message\n{encoded}\n\n"

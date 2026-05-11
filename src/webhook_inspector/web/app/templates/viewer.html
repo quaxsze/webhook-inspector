@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Webhook Inspector — {{ token }}</title>
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+  <header class="border-b border-slate-700 px-6 py-4">
+    <h1 class="text-xl font-mono">webhook-inspector</h1>
+    <p class="text-sm text-slate-400 mt-1">
+      URL d'ingestion :
+      <code class="bg-slate-800 px-2 py-1 rounded">{{ hook_url }}</code>
+    </p>
+  </header>
+
+  <main class="px-6 py-4">
+    <div hx-ext="sse" sse-connect="/stream/{{ token }}" class="space-y-2">
+      <ul id="requests" sse-swap="message" hx-swap="afterbegin" class="space-y-2">
+        {% for req in initial_requests %}
+          {% include "request_fragment.html" %}
+        {% endfor %}
+      </ul>
+    </div>
+  </main>
+</body>
+</html>
