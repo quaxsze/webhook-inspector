@@ -57,9 +57,9 @@ async def get_notifier() -> PostgresNotifier:
 
 
 async def get_capture_request(
-    session: AsyncSession = Depends(get_session),
-    settings: Settings = Depends(get_settings),
-    notifier: PostgresNotifier = Depends(get_notifier),
+    session: AsyncSession = Depends(get_session),  # noqa: B008
+    settings: Settings = Depends(get_settings),  # noqa: B008
+    notifier: PostgresNotifier = Depends(get_notifier),  # noqa: B008
 ) -> CaptureRequest:
     return CaptureRequest(
         endpoint_repo=PostgresEndpointRepository(session),

@@ -1,5 +1,4 @@
 import httpx
-import pytest
 from httpx import ASGITransport
 
 from webhook_inspector.web.app.main import app

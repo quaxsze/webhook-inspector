@@ -36,7 +36,7 @@ class CreateEndpointResponse(BaseModel):
 @router.post("/api/endpoints", status_code=201, response_model=CreateEndpointResponse)
 async def create_endpoint(
     request: Request,
-    use_case: CreateEndpoint = Depends(get_create_endpoint),
+    use_case: CreateEndpoint = Depends(get_create_endpoint),  # noqa: B008
 ) -> CreateEndpointResponse:
     endpoint = await use_case.execute()
     return CreateEndpointResponse(
@@ -64,7 +64,7 @@ async def list_requests(
     token: str,
     limit: int = 50,
     before_id: UUID | None = None,
-    use_case: ListRequests = Depends(get_list_requests),
+    use_case: ListRequests = Depends(get_list_requests),  # noqa: B008
 ) -> RequestList:
     try:
         items = await use_case.execute(token=token, limit=limit, before_id=before_id)

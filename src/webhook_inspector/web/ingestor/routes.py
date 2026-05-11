@@ -18,8 +18,8 @@ async def capture(
     token: str,
     rest: str,
     request: Request,
-    use_case: CaptureRequest = Depends(get_capture_request),
-    settings: Settings = Depends(get_settings),
+    use_case: CaptureRequest = Depends(get_capture_request),  # noqa: B008
+    settings: Settings = Depends(get_settings),  # noqa: B008
 ):
     content_length = request.headers.get("content-length")
     if content_length and int(content_length) > settings.max_body_bytes:

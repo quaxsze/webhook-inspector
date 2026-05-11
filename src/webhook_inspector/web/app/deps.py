@@ -57,8 +57,8 @@ async def get_notifier() -> PostgresNotifier:
 
 
 async def get_create_endpoint(
-    session: AsyncSession = Depends(get_session),
-    settings: Settings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),  # noqa: B008
+    settings: Settings = Depends(get_settings),  # noqa: B008
 ) -> CreateEndpoint:
     return CreateEndpoint(
         repo=PostgresEndpointRepository(session),
@@ -67,7 +67,7 @@ async def get_create_endpoint(
 
 
 async def get_list_requests(
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_session),  # noqa: B008
 ) -> ListRequests:
     return ListRequests(
         endpoint_repo=PostgresEndpointRepository(session),

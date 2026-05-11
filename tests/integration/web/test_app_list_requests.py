@@ -2,7 +2,6 @@ import httpx
 from httpx import ASGITransport
 
 from webhook_inspector.web.app.main import app as app_service
-from webhook_inspector.web.ingestor.main import app as ingestor_service
 
 
 async def test_list_returns_empty_for_new_endpoint(monkeypatch, database_url, engine, tmp_path):
