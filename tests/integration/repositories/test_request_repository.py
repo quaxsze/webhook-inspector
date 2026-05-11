@@ -73,16 +73,18 @@ async def test_list_by_endpoint_respects_limit(session):
     endpoint = await _seed_endpoint(session)
     repo = PostgresRequestRepository(session)
     for i in range(5):
-        await repo.save(CapturedRequest.create(
-            endpoint_id=endpoint.id,
-            method="GET",
-            path=f"/h/abc/{i}",
-            query_string=None,
-            headers={},
-            body=b"",
-            source_ip="192.0.2.1",
-            inline_threshold_bytes=8192,
-        ))
+        await repo.save(
+            CapturedRequest.create(
+                endpoint_id=endpoint.id,
+                method="GET",
+                path=f"/h/abc/{i}",
+                query_string=None,
+                headers={},
+                body=b"",
+                source_ip="192.0.2.1",
+                inline_threshold_bytes=8192,
+            )
+        )
     await session.commit()
 
     result = await repo.list_by_endpoint(endpoint.id, limit=2)

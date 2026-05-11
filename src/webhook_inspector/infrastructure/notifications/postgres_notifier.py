@@ -31,9 +31,7 @@ class PostgresNotifier(Notifier):
         async with self._lock:
             if self._listen_conn is not None:
                 return
-            self._listen_conn = await psycopg.AsyncConnection.connect(
-                self._dsn, autocommit=True
-            )
+            self._listen_conn = await psycopg.AsyncConnection.connect(self._dsn, autocommit=True)
             async with self._listen_conn.cursor() as cur:
                 await cur.execute("LISTEN new_request;")
             self._reader_task = asyncio.create_task(self._read_loop())

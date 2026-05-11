@@ -9,11 +9,15 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExport
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 
-def configure_tracing(service_name: str, environment: str, otlp_endpoint: str | None = None) -> None:
-    resource = Resource.create({
-        "service.name": service_name,
-        "deployment.environment": environment,
-    })
+def configure_tracing(
+    service_name: str, environment: str, otlp_endpoint: str | None = None
+) -> None:
+    resource = Resource.create(
+        {
+            "service.name": service_name,
+            "deployment.environment": environment,
+        }
+    )
     provider = TracerProvider(resource=resource)
 
     if otlp_endpoint:

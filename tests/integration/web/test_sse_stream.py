@@ -22,7 +22,9 @@ async def test_sse_delivers_new_request_event(monkeypatch, database_url, engine,
         m._engine.cache_clear()
         m._session_factory.cache_clear()
 
-    async with httpx.AsyncClient(transport=ASGITransport(app=app_service), base_url="http://test") as c:
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app_service), base_url="http://test"
+    ) as c:
         token = (await c.post("/api/endpoints")).json()["token"]
 
     # Accumulate SSE body parts delivered to the httpx ASGITransport send callback.
@@ -72,7 +74,9 @@ async def test_sse_delivers_new_request_event(monkeypatch, database_url, engine,
     await asyncio.sleep(0.5)
 
     # Send a webhook request
-    async with httpx.AsyncClient(transport=ASGITransport(app=ingestor_service), base_url="http://hook") as c:
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=ingestor_service), base_url="http://hook"
+    ) as c:
         await c.post(f"/h/{token}", content=b"hello")
 
     # Give the SSE event time to arrive and be processed

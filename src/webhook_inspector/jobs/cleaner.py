@@ -16,9 +16,7 @@ logger = logging.getLogger(__name__)
 
 async def run_cleanup(database_url: str) -> int:
     engine = create_async_engine(database_url, future=True)
-    factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
-        engine, expire_on_commit=False
-    )
+    factory: async_sessionmaker[AsyncSession] = async_sessionmaker(engine, expire_on_commit=False)
     try:
         async with factory() as session:
             deleted = await PostgresEndpointRepository(session).delete_expired()

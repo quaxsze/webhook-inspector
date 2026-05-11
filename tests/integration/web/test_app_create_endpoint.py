@@ -8,6 +8,7 @@ async def test_post_endpoints_returns_url_and_expiry(monkeypatch, database_url, 
     monkeypatch.setenv("DATABASE_URL", database_url.replace("+psycopg_async", "+psycopg"))
     # Reset deps cache
     from webhook_inspector.web.app import deps
+
     deps.get_settings.cache_clear()
     deps._engine.cache_clear()
     deps._session_factory.cache_clear()

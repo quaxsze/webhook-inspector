@@ -5,18 +5,40 @@ from typing import Any
 import structlog
 
 # Standard LogRecord attributes that should not be forwarded to the event dict.
-_STDLIB_RESERVED: frozenset[str] = frozenset({
-    "name", "msg", "args", "levelname", "levelno", "pathname", "filename",
-    "module", "exc_info", "exc_text", "stack_info", "lineno", "funcName",
-    "created", "msecs", "relativeCreated", "thread", "threadName",
-    "processName", "process", "taskName", "message", "asctime",
-    "_logger", "_name", "_from_structlog", "_record",
-})
+_STDLIB_RESERVED: frozenset[str] = frozenset(
+    {
+        "name",
+        "msg",
+        "args",
+        "levelname",
+        "levelno",
+        "pathname",
+        "filename",
+        "module",
+        "exc_info",
+        "exc_text",
+        "stack_info",
+        "lineno",
+        "funcName",
+        "created",
+        "msecs",
+        "relativeCreated",
+        "thread",
+        "threadName",
+        "processName",
+        "process",
+        "taskName",
+        "message",
+        "asctime",
+        "_logger",
+        "_name",
+        "_from_structlog",
+        "_record",
+    }
+)
 
 
-def _extract_from_record(
-    logger: Any, method: str, event_dict: dict[str, Any]
-) -> dict[str, Any]:
+def _extract_from_record(logger: Any, method: str, event_dict: dict[str, Any]) -> dict[str, Any]:
     """Copy extra fields (including filter-injected ones) from LogRecord into event_dict."""
     record = event_dict.get("_record")
     if record is not None:

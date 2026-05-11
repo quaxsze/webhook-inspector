@@ -34,6 +34,7 @@ async def engine(database_url: str):
     async with eng.begin() as conn:
         # Register all models
         from webhook_inspector.infrastructure.database import models  # noqa: F401
+
         await conn.run_sync(SQLModel.metadata.create_all)
     yield eng
     await eng.dispose()

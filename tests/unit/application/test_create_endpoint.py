@@ -20,7 +20,8 @@ class FakeEndpointRepo(EndpointRepository):
 
     async def increment_request_count(self, endpoint_id): ...
 
-    async def delete_expired(self) -> int: return 0
+    async def delete_expired(self) -> int:
+        return 0
 
 
 async def test_creates_and_persists_endpoint():
