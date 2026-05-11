@@ -1,8 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-import pytest
-
 from webhook_inspector.domain.entities.endpoint import Endpoint
 from webhook_inspector.infrastructure.repositories.endpoint_repository import (
     PostgresEndpointRepository,
