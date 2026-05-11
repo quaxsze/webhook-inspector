@@ -1,12 +1,10 @@
 import httpx
-import pytest
 from httpx import ASGITransport
 
 from webhook_inspector.web.app.main import app as app_service
 from webhook_inspector.web.ingestor.main import app as ingestor_service
 
 
-@pytest.mark.skip(reason="GET /api/endpoints/{token}/requests added in Task 17")
 async def test_capture_returns_200_and_persists(monkeypatch, database_url, engine, tmp_path):
     monkeypatch.setenv("DATABASE_URL", database_url.replace("+psycopg_async", "+psycopg"))
     monkeypatch.setenv("BLOB_STORAGE_PATH", str(tmp_path))
