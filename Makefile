@@ -1,42 +1,42 @@
-.PHONY: install lint type test test-unit test-int up down migrate clean help
+.PHONY: install lint type test test-unit test-int test-e2e up down migrate clean help
 
-install:
+install: ## Install dependencies via uv
 	uv sync
 
-lint:
+lint: ## Run ruff lint + format check
 	uv run ruff check src tests
 	uv run ruff format --check src tests
 
-format:
+format: ## Auto-fix and format with ruff
 	uv run ruff check --fix src tests
 	uv run ruff format src tests
 
-type:
+type: ## Run mypy strict type-check
 	uv run mypy src
 
-test-unit:
+test-unit: ## Run unit tests
 	uv run pytest tests/unit -v
 
-test-int:
+test-int: ## Run integration tests
 	uv run pytest tests/integration -v
 
-test-e2e:
+test-e2e: ## Run E2E tests
 	uv run pytest tests/e2e -v
 
-test:
+test: ## Run full pytest suite
 	uv run pytest tests -v
 
-up:
+up: ## Start docker-compose stack
 	docker compose up -d --build
 
-down:
+down: ## Stop docker-compose stack and remove volumes
 	docker compose down -v
 
-migrate:
+migrate: ## Run alembic migrations
 	uv run alembic upgrade head
 
-clean:
+clean: ## Run cleanup job (delete expired endpoints)
 	uv run python -m webhook_inspector.jobs.cleaner
 
-help:
+help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
