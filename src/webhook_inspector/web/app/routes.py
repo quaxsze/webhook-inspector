@@ -1,3 +1,5 @@
+from collections.abc import AsyncIterator
+from typing import cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -98,7 +100,7 @@ async def list_requests(
 async def sse_stream(
     token: str,
     notifier: PostgresNotifier = Depends(get_notifier),  # noqa: B008
-):
+) -> StreamingResponse:
     try:
         gen = stream_for_token(token, _session_factory(), notifier)
         # Probe to surface 404 before opening stream
@@ -106,7 +108,7 @@ async def sse_stream(
     except EndpointNotFoundError as e:
         raise HTTPException(status_code=404, detail="endpoint not found") from e
 
-    async def merged():
+    async def merged() -> AsyncIterator[str]:
         yield first
         async for chunk in gen:
             yield chunk
@@ -123,27 +125,30 @@ async def viewer(
     token: str,
     request: Request,
     use_case: ListRequests = Depends(get_list_requests),  # noqa: B008
-):
+) -> HTMLResponse:
     try:
         initial = await use_case.execute(token=token, limit=50)
     except EndpointNotFoundError as e:
         raise HTTPException(status_code=404, detail="endpoint not found") from e
 
     templates = request.app.state.templates
-    return templates.TemplateResponse(
-        request=request,
-        name="viewer.html",
-        context={
-            "token": token,
-            "hook_url": f"{hook_base_url(request)}/h/{token}",
-            "initial_requests": [
-                {
-                    "method": r.method,
-                    "path": r.path,
-                    "body_size": r.body_size,
-                    "received_at": r.received_at.isoformat(),
-                }
-                for r in initial
-            ],
-        },
+    return cast(
+        HTMLResponse,
+        templates.TemplateResponse(
+            request=request,
+            name="viewer.html",
+            context={
+                "token": token,
+                "hook_url": f"{hook_base_url(request)}/h/{token}",
+                "initial_requests": [
+                    {
+                        "method": r.method,
+                        "path": r.path,
+                        "body_size": r.body_size,
+                        "received_at": r.received_at.isoformat(),
+                    }
+                    for r in initial
+                ],
+            },
+        ),
     )

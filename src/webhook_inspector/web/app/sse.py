@@ -2,7 +2,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from webhook_inspector.application.use_cases.list_requests import EndpointNotFoundError
 from webhook_inspector.infrastructure.notifications.postgres_notifier import PostgresNotifier
@@ -19,7 +19,7 @@ _env = Environment(loader=FileSystemLoader(str(_TEMPLATES_DIR)), autoescape=sele
 
 async def stream_for_token(
     token: str,
-    session_factory: async_sessionmaker,
+    session_factory: async_sessionmaker[AsyncSession],
     notifier: PostgresNotifier,
 ) -> AsyncIterator[str]:
     async with session_factory() as session:

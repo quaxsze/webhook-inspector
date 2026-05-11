@@ -56,6 +56,7 @@ python_version = "3.13"
 strict = true
 ignore_missing_imports = true
 exclude = ["migrations/"]
+plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

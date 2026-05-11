@@ -20,7 +20,7 @@ async def capture(
     request: Request,
     use_case: CaptureRequest = Depends(get_capture_request),  # noqa: B008
     settings: Settings = Depends(get_settings),  # noqa: B008
-):
+) -> dict[str, bool]:
     content_length = request.headers.get("content-length")
     if content_length and int(content_length) > settings.max_body_bytes:
         raise HTTPException(status_code=413, detail="payload too large")

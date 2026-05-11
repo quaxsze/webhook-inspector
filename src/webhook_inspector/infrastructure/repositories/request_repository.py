@@ -30,7 +30,7 @@ class PostgresRequestRepository(RequestRepository):
         await self._session.flush()
 
     async def find_by_id(self, request_id: UUID) -> CapturedRequest | None:
-        stmt = select(RequestTable).where(RequestTable.id == request_id)
+        stmt = select(RequestTable).where(RequestTable.id == request_id)  # type: ignore[arg-type]  # SQLAlchemy/mypy strict incompat
         row = (await self._session.execute(stmt)).scalar_one_or_none()
         return _to_entity(row) if row else None
 
@@ -42,15 +42,15 @@ class PostgresRequestRepository(RequestRepository):
     ) -> list[CapturedRequest]:
         stmt = (
             select(RequestTable)
-            .where(RequestTable.endpoint_id == endpoint_id)
-            .order_by(RequestTable.received_at.desc(), RequestTable.id.desc())
+            .where(RequestTable.endpoint_id == endpoint_id)  # type: ignore[arg-type]  # SQLAlchemy/mypy strict incompat
+            .order_by(RequestTable.received_at.desc(), RequestTable.id.desc())  # type: ignore[attr-defined]  # SQLAlchemy column descriptors have .desc() at runtime
             .limit(limit)
         )
 
         if before_id is not None:
             cursor = (
                 await self._session.execute(
-                    select(RequestTable.received_at).where(RequestTable.id == before_id)
+                    select(RequestTable.received_at).where(RequestTable.id == before_id)  # type: ignore[call-overload]  # SQLAlchemy/mypy strict incompat
                 )
             ).scalar_one_or_none()
             if cursor is not None:

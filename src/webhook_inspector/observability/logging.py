@@ -1,5 +1,6 @@
 import logging
 import sys
+from collections.abc import MutableMapping
 from typing import Any
 
 import structlog
@@ -38,7 +39,9 @@ _STDLIB_RESERVED: frozenset[str] = frozenset(
 )
 
 
-def _extract_from_record(logger: Any, method: str, event_dict: dict[str, Any]) -> dict[str, Any]:
+def _extract_from_record(
+    logger: Any, method: str, event_dict: MutableMapping[str, Any]
+) -> MutableMapping[str, Any]:
     """Copy extra fields (including filter-injected ones) from LogRecord into event_dict."""
     record = event_dict.get("_record")
     if record is not None:

@@ -24,7 +24,7 @@ class RequestTable(SQLModel, table=True):
     method: str = Field(nullable=False)
     path: str = Field(nullable=False)
     query_string: str | None = Field(default=None)
-    headers: dict = Field(sa_column=Column(JSONB, nullable=False))
+    headers: dict[str, str] = Field(sa_column=Column(JSONB, nullable=False))
     body_preview: str | None = Field(default=None)
     body_size: int = Field(nullable=False)
     blob_key: str | None = Field(default=None)

@@ -2,7 +2,12 @@ from collections.abc import AsyncIterator
 from functools import lru_cache
 
 from fastapi import Depends
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from webhook_inspector.application.use_cases.capture_request import CaptureRequest
 from webhook_inspector.config import Settings
@@ -22,7 +27,7 @@ def get_settings() -> Settings:
 
 
 @lru_cache(maxsize=1)
-def _engine():
+def _engine() -> AsyncEngine:
     settings = get_settings()
     return create_async_engine(settings.database_url, pool_pre_ping=True, future=True)
 

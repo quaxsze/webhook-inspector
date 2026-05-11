@@ -24,7 +24,7 @@ class PostgresNotifier(Notifier):
         self._dsn = dsn
         self._listen_conn: AsyncConnection | None = None
         self._queues: dict[UUID, set[asyncio.Queue[UUID]]] = defaultdict(set)
-        self._reader_task: asyncio.Task | None = None
+        self._reader_task: asyncio.Task[None] | None = None
         self._lock = asyncio.Lock()
 
     async def start(self) -> None:

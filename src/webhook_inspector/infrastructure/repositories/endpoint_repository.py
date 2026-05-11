@@ -25,27 +25,27 @@ class PostgresEndpointRepository(EndpointRepository):
         await self._session.flush()
 
     async def find_by_token(self, token: str) -> Endpoint | None:
-        stmt = select(EndpointTable).where(EndpointTable.token == token)
+        stmt = select(EndpointTable).where(EndpointTable.token == token)  # type: ignore[arg-type]  # SQLAlchemy/mypy strict incompat
         row = (await self._session.execute(stmt)).scalar_one_or_none()
         return _to_entity(row) if row else None
 
     async def find_by_id(self, endpoint_id: UUID) -> Endpoint | None:
-        stmt = select(EndpointTable).where(EndpointTable.id == endpoint_id)
+        stmt = select(EndpointTable).where(EndpointTable.id == endpoint_id)  # type: ignore[arg-type]  # SQLAlchemy/mypy strict incompat
         row = (await self._session.execute(stmt)).scalar_one_or_none()
         return _to_entity(row) if row else None
 
     async def increment_request_count(self, endpoint_id: UUID) -> None:
         stmt = (
             update(EndpointTable)
-            .where(EndpointTable.id == endpoint_id)
+            .where(EndpointTable.id == endpoint_id)  # type: ignore[arg-type]  # SQLAlchemy/mypy strict incompat
             .values(request_count=EndpointTable.request_count + 1)
         )
         await self._session.execute(stmt)
 
     async def delete_expired(self) -> int:
-        stmt = delete(EndpointTable).where(EndpointTable.expires_at < datetime.now(UTC))
+        stmt = delete(EndpointTable).where(EndpointTable.expires_at < datetime.now(UTC))  # type: ignore[arg-type]  # SQLAlchemy/mypy strict incompat
         result = await self._session.execute(stmt)
-        return result.rowcount or 0
+        return result.rowcount or 0  # type: ignore[attr-defined]  # CursorResult has rowcount at runtime
 
 
 def _to_entity(row: EndpointTable) -> Endpoint:
