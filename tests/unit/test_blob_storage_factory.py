@@ -2,6 +2,7 @@ import os
 from unittest.mock import patch
 
 import pytest
+from pydantic import ValidationError
 
 from webhook_inspector.infrastructure.storage.local_blob_storage import LocalBlobStorage
 
@@ -41,6 +42,7 @@ def test_factory_raises_when_gcs_backend_without_bucket():
 
 
 def test_factory_raises_on_unknown_backend():
+    """Pydantic itself rejects backend values not in the Literal."""
     env = {
         "BLOB_STORAGE_BACKEND": "redis",
         "DATABASE_URL": "postgresql+psycopg://x:y@h:5432/d",
@@ -48,6 +50,5 @@ def test_factory_raises_on_unknown_backend():
     with patch.dict(os.environ, env, clear=True):
         from webhook_inspector.config import Settings
 
-        settings = Settings()
-        with pytest.raises(ValueError, match="unknown blob storage backend"):
-            _import_factory().make_blob_storage(settings)
+        with pytest.raises(ValidationError):
+            Settings()

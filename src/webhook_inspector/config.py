@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -6,7 +8,7 @@ class Settings(BaseSettings):
 
     database_url: str
     blob_storage_path: str = "./blobs"
-    blob_storage_backend: str = "local"  # "local" or "gcs"
+    blob_storage_backend: Literal["local", "gcs"] = "local"
     gcs_bucket_name: str | None = None
     endpoint_ttl_days: int = 7
     max_body_bytes: int = 10 * 1024 * 1024
