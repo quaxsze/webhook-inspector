@@ -42,3 +42,18 @@ Two FastAPI services + one job, all sharing the same Python package:
 - `cleaner` — cron job, deletes expired endpoints
 
 See spec at `docs/specs/2026-05-11-webhook-inspector-design.md`.
+
+## Production deployment
+
+Live URLs:
+- App: `https://app.odessa-inspect.org`
+- Ingestor (webhook target): `https://hook.odessa-inspect.org`
+
+Generated webhook URLs (`POST /api/endpoints`) automatically point to the ingestor subdomain. Use as-is in any service that sends webhooks (Stripe, GitHub, Slack...).
+
+Deploys are automatic on push to `main`. See `infra/terraform/README.md` for the deployment pipeline.
+
+Trace data is exported to Google Cloud Trace. View traces:
+```
+gcloud trace traces list --limit=10
+```

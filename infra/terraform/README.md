@@ -52,6 +52,39 @@ cd infra/terraform
 tofu apply
 ```
 
+## Continuous Deployment
+
+After Phase C, deploys are automated via GitHub Actions:
+- Push to `main` triggers `.github/workflows/deploy.yml`
+- Build image with git SHA tag → push to Artifact Registry → execute migrator Job → `tofu apply -target=<Cloud Run resources>` → smoke test
+
+No manual `./scripts/build_and_push.sh` needed in normal flow. Use the script only for emergency hotfixes or local image testing.
+
+**Required GitHub variables (set once):**
+- `GCP_PROJECT_ID`
+- `GCP_REGION`
+- `GCP_WIF_PROVIDER`
+- `GCP_DEPLOYER_SA`
+
+**No GitHub secrets needed for the deploy workflow** — auth is via Workload Identity Federation.
+
+**Other secrets (used only when Terraform runs locally):**
+- `CLOUDFLARE_API_TOKEN` (also a GH secret; not consumed by `deploy.yml` since it doesn't target Cloudflare resources)
+
+## Custom Domain Setup
+
+Production URLs:
+- App: `https://app.<your-domain>`
+- Ingestor: `https://hook.<your-domain>`
+
+To re-do the DNS setup:
+1. Buy a domain (Cloudflare Registrar recommended — at-cost pricing)
+2. Set `TF_VAR_cloudflare_api_token` env var locally
+3. Add `domain` + `cloudflare_zone_id` to `terraform.tfvars`
+4. `gcloud domains verify <domain>` once (manual, interactive)
+5. `tofu apply` — creates Cloud Run domain mappings + Cloudflare CNAMEs
+6. Wait 5-30 min for Google-managed TLS certs to provision
+
 ## Tearing down
 
 ```bash
