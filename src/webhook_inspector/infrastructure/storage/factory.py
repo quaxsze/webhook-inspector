@@ -9,12 +9,11 @@ def make_blob_storage(settings: Settings) -> BlobStorage:
         return LocalBlobStorage(base_path=settings.blob_storage_path)
     if backend == "gcs":
         if not settings.gcs_bucket_name:
-            raise ValueError(
-                "GCS_BUCKET_NAME must be set when BLOB_STORAGE_BACKEND=gcs"
-            )
+            raise ValueError("GCS_BUCKET_NAME must be set when BLOB_STORAGE_BACKEND=gcs")
         # Import here to avoid importing google-cloud-storage when not used
         from webhook_inspector.infrastructure.storage.gcs_blob_storage import (
             GcsBlobStorage,
         )
+
         return GcsBlobStorage(bucket_name=settings.gcs_bucket_name)
     raise ValueError(f"unknown blob storage backend: {backend!r}")

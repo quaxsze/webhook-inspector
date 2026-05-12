@@ -9,6 +9,7 @@ from webhook_inspector.infrastructure.storage.local_blob_storage import LocalBlo
 def _import_factory():
     # Lazy import so we can re-import after env changes
     from webhook_inspector.infrastructure.storage import factory
+
     return factory
 
 
@@ -20,6 +21,7 @@ def test_factory_returns_local_when_backend_is_local(tmp_path):
     }
     with patch.dict(os.environ, env, clear=True):
         from webhook_inspector.config import Settings
+
         settings = Settings()
         storage = _import_factory().make_blob_storage(settings)
         assert isinstance(storage, LocalBlobStorage)
@@ -32,6 +34,7 @@ def test_factory_raises_when_gcs_backend_without_bucket():
     }
     with patch.dict(os.environ, env, clear=True):
         from webhook_inspector.config import Settings
+
         settings = Settings()
         with pytest.raises(ValueError, match="GCS_BUCKET_NAME"):
             _import_factory().make_blob_storage(settings)
@@ -44,6 +47,7 @@ def test_factory_raises_on_unknown_backend():
     }
     with patch.dict(os.environ, env, clear=True):
         from webhook_inspector.config import Settings
+
         settings = Settings()
         with pytest.raises(ValueError, match="unknown blob storage backend"):
             _import_factory().make_blob_storage(settings)
