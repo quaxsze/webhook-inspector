@@ -9,6 +9,7 @@ locals {
     "iam.googleapis.com",
     "compute.googleapis.com",
     "cloudbuild.googleapis.com",
+    "cloudtrace.googleapis.com",
   ]
 }
 
