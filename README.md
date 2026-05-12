@@ -1,5 +1,12 @@
 # Webhook Inspector
 
+[![CI](https://github.com/quaxsze/webhook-inspector/actions/workflows/lint-and-test.yml/badge.svg)](https://github.com/quaxsze/webhook-inspector/actions/workflows/lint-and-test.yml)
+[![Deploy](https://github.com/quaxsze/webhook-inspector/actions/workflows/deploy.yml/badge.svg)](https://github.com/quaxsze/webhook-inspector/actions/workflows/deploy.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/downloads/release/python-3130/)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![Type checked: mypy](https://img.shields.io/badge/types-mypy_strict-blue.svg)](https://mypy.readthedocs.io/)
+
 A self-hostable webhook inspection service. Generate a URL, point any webhook at it, see requests in real-time in your browser.
 
 This is a learning side-project — see `docs/specs/2026-05-11-webhook-inspector-design.md` for design rationale and roadmap.
@@ -57,3 +64,24 @@ Trace data is exported to Google Cloud Trace. View traces:
 ```
 gcloud trace traces list --limit=10
 ```
+
+## Roadmap
+
+| Phase | Status | Focus |
+|-------|--------|-------|
+| V1 | ✅ Live | MVP: 5 endpoints + live viewer + Cloud Run + WIF CI/CD + custom domain + Cloud Trace |
+| V2 | 🟡 Planned | Custom response (status/body) + replay + custom OTEL metrics + Cloud Monitoring dashboards |
+| V3 | 🟡 Planned | Forward webhook to a target URL (Pub/Sub + worker + DLQ + retry) |
+| V4 | 🟡 Planned | Rate limiting + Cloudflare WAF + Memorystore Redis |
+| V5 | 🟡 Planned | Google OAuth auth + claimed URLs + long-term history |
+| V6 | 🟡 Planned | Formal SLOs + error budgets + status page |
+
+See [`docs/specs/`](docs/specs/) for design rationale per phase.
+
+## Contributing
+
+Contributions welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md). For security issues, please use [GitHub Security Advisories](https://github.com/quaxsze/webhook-inspector/security/advisories/new) (see [`SECURITY.md`](SECURITY.md)).
+
+## License
+
+[MIT](LICENSE) © 2026 Stanislas Plum

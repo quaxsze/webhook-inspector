@@ -1,0 +1,54 @@
+name: Feature request
+description: Propose a new feature or enhancement
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before opening a feature request, please check the [roadmap](https://github.com/quaxsze/webhook-inspector#roadmap) and existing issues to avoid duplication.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the user pain point or limitation you're addressing.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How should this feature work? Be as specific as possible.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you thought about and why you rejected them.
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - User-facing feature
+        - Developer experience
+        - Infrastructure / DevOps
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Checks
+      options:
+        - label: I have searched existing issues for this feature
+          required: true
+        - label: This aligns with the project goals in the README / docs
+          required: true
