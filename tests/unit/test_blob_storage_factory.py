@@ -1,0 +1,53 @@
+import os
+from unittest.mock import patch
+
+import pytest
+
+from webhook_inspector.infrastructure.storage.local_blob_storage import LocalBlobStorage
+
+
+def _import_factory():
+    # Lazy import so we can re-import after env changes
+    from webhook_inspector.infrastructure.storage import factory
+
+    return factory
+
+
+def test_factory_returns_local_when_backend_is_local(tmp_path):
+    env = {
+        "BLOB_STORAGE_BACKEND": "local",
+        "BLOB_STORAGE_PATH": str(tmp_path),
+        "DATABASE_URL": "postgresql+psycopg://x:y@h:5432/d",
+    }
+    with patch.dict(os.environ, env, clear=True):
+        from webhook_inspector.config import Settings
+
+        settings = Settings()
+        storage = _import_factory().make_blob_storage(settings)
+        assert isinstance(storage, LocalBlobStorage)
+
+
+def test_factory_raises_when_gcs_backend_without_bucket():
+    env = {
+        "BLOB_STORAGE_BACKEND": "gcs",
+        "DATABASE_URL": "postgresql+psycopg://x:y@h:5432/d",
+    }
+    with patch.dict(os.environ, env, clear=True):
+        from webhook_inspector.config import Settings
+
+        settings = Settings()
+        with pytest.raises(ValueError, match="GCS_BUCKET_NAME"):
+            _import_factory().make_blob_storage(settings)
+
+
+def test_factory_raises_on_unknown_backend():
+    env = {
+        "BLOB_STORAGE_BACKEND": "redis",
+        "DATABASE_URL": "postgresql+psycopg://x:y@h:5432/d",
+    }
+    with patch.dict(os.environ, env, clear=True):
+        from webhook_inspector.config import Settings
+
+        settings = Settings()
+        with pytest.raises(ValueError, match="unknown blob storage backend"):
+            _import_factory().make_blob_storage(settings)
