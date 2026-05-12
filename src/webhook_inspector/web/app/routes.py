@@ -1,3 +1,4 @@
+import re
 from collections.abc import AsyncIterator
 from typing import cast
 from uuid import UUID
@@ -26,15 +27,24 @@ router = APIRouter()
 def hook_base_url(request: Request) -> str:
     """Derive the ingestor base URL from the app base URL.
 
-    Prod: app.<domain>  →  hook.<domain>
-    Local docker-compose: localhost:8000 → localhost:8001
+    Cases handled (in priority order):
+    1. Prod subdomain:    https://app.<domain>          → https://hook.<domain>
+    2. Cloud Run default: https://*-app-*.a.run.app     → https://*-ingestor-*.a.run.app
+    3. Local compose:     http://localhost:8000         → http://localhost:8001
+    4. Fallback:          unchanged (single-host dev, e.g. http://test/)
     """
     base = str(request.base_url).rstrip("/")
+
     if "://app." in base:
         return base.replace("://app.", "://hook.")
+
+    if re.search(r"webhook-inspector-app(-[a-z0-9]+)?-([a-z0-9]+)\.a\.run\.app", base):
+        return base.replace("webhook-inspector-app", "webhook-inspector-ingestor")
+
     if ":8000" in base:
         return base.replace(":8000", ":8001")
-    return base  # fallback (single-host dev)
+
+    return base
 
 
 class CreateEndpointResponse(BaseModel):
