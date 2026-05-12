@@ -45,9 +45,11 @@ locals {
   deployer_project_roles = [
     "roles/run.admin",                    # deploy/update Cloud Run services + jobs
     "roles/artifactregistry.writer",      # push images
-    "roles/secretmanager.secretAccessor", # read DATABASE_URL during deploy validations
+    "roles/secretmanager.secretAccessor", # read DATABASE_URL secret value during deploy validations
+    "roles/secretmanager.viewer",         # read secret resource metadata (needed by tofu refresh)
     "roles/cloudsql.client",              # connect via Auth Proxy for migrations
     "roles/iam.serviceAccountUser",       # actAs the runtime SAs (assigned to Cloud Run)
+    "roles/iam.securityReviewer",         # read project IAM policy (needed by tofu refresh on iam_member resources)
     "roles/storage.admin",                # tofu state bucket access (read/write)
   ]
 }
