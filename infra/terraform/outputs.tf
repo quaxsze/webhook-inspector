@@ -5,3 +5,8 @@ output "ingestor_url" {
   value       = google_cloud_run_v2_service.ingestor.uri
   description = "Public URL of the ingestor service."
 }
+
+output "app_url" {
+  value       = google_cloud_run_v2_service.app.uri
+  description = "Public URL of the app/UI service."
+}
