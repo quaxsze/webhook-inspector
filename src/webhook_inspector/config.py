@@ -6,6 +6,8 @@ class Settings(BaseSettings):
 
     database_url: str
     blob_storage_path: str = "./blobs"
+    blob_storage_backend: str = "local"  # "local" or "gcs"
+    gcs_bucket_name: str | None = None
     endpoint_ttl_days: int = 7
     max_body_bytes: int = 10 * 1024 * 1024
     body_inline_threshold_bytes: int = 8 * 1024

@@ -18,7 +18,7 @@ from webhook_inspector.infrastructure.repositories.endpoint_repository import (
 from webhook_inspector.infrastructure.repositories.request_repository import (
     PostgresRequestRepository,
 )
-from webhook_inspector.infrastructure.storage.local_blob_storage import LocalBlobStorage
+from webhook_inspector.infrastructure.storage.factory import make_blob_storage
 
 
 @lru_cache(maxsize=1)
@@ -69,7 +69,7 @@ async def get_capture_request(
     return CaptureRequest(
         endpoint_repo=PostgresEndpointRepository(session),
         request_repo=PostgresRequestRepository(session),
-        blob_storage=LocalBlobStorage(settings.blob_storage_path),
+        blob_storage=make_blob_storage(settings),
         notifier=notifier,
         inline_threshold=settings.body_inline_threshold_bytes,
     )
