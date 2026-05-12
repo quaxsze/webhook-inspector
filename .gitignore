@@ -21,3 +21,4 @@ infra/terraform/terraform.tfvars
 infra/terraform/*.tfstate
 infra/terraform/*.tfstate.backup
 infra/terraform/crash.log
+infra/terraform/*.out

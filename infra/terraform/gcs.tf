@@ -25,7 +25,7 @@ resource "google_storage_bucket" "blobs" {
 # Grant write access to ingestor + read access to app
 resource "google_storage_bucket_iam_member" "ingestor_writer" {
   bucket = google_storage_bucket.blobs.name
-  role   = "roles/storage.objectAdmin" # write + delete (the cleaner needs delete via lifecycle anyway)
+  role   = "roles/storage.objectCreator" # least privilege: write-only. GCS lifecycle handles deletes.
   member = "serviceAccount:${google_service_account.ingestor.email}"
 }
 

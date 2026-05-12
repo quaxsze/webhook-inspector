@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import (
 
 from webhook_inspector.application.use_cases.capture_request import CaptureRequest
 from webhook_inspector.config import Settings
+from webhook_inspector.domain.ports.blob_storage import BlobStorage
 from webhook_inspector.infrastructure.notifications.postgres_notifier import PostgresNotifier
 from webhook_inspector.infrastructure.repositories.endpoint_repository import (
     PostgresEndpointRepository,
@@ -35,6 +36,11 @@ def _engine() -> AsyncEngine:
 @lru_cache(maxsize=1)
 def _session_factory() -> async_sessionmaker[AsyncSession]:
     return async_sessionmaker(_engine(), expire_on_commit=False, class_=AsyncSession)
+
+
+@lru_cache(maxsize=1)
+def _blob_storage() -> BlobStorage:
+    return make_blob_storage(get_settings())
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
@@ -69,7 +75,7 @@ async def get_capture_request(
     return CaptureRequest(
         endpoint_repo=PostgresEndpointRepository(session),
         request_repo=PostgresRequestRepository(session),
-        blob_storage=make_blob_storage(settings),
+        blob_storage=_blob_storage(),
         notifier=notifier,
         inline_threshold=settings.body_inline_threshold_bytes,
     )
