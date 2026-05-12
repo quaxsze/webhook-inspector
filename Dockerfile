@@ -20,5 +20,10 @@ COPY --from=builder /app /app
 COPY migrations ./migrations
 COPY alembic.ini ./
 
+# Run as non-root user
+RUN groupadd -r appuser && useradd -r -u 1001 -g appuser appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8000 8001
 CMD ["uvicorn", "webhook_inspector.web.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
