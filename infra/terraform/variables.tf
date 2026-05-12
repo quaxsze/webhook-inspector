@@ -52,3 +52,28 @@ variable "app_max_instances" {
   type    = number
   default = 5
 }
+
+variable "github_repo" {
+  type        = string
+  default     = "quaxsze/webhook-inspector"
+  description = "GitHub repo allowed to deploy via Workload Identity Federation (format: owner/repo)."
+}
+
+variable "domain" {
+  type        = string
+  default     = ""
+  description = "Apex domain (e.g. 'example.com'). Cloud Run is mapped to app.<domain> and hook.<domain>. Empty string disables domain mapping (used in CI deploys that don't touch DNS)."
+}
+
+variable "cloudflare_api_token" {
+  type        = string
+  default     = ""
+  description = "Cloudflare API token with Zone DNS edit rights. Provided via TF_VAR_cloudflare_api_token. Empty for CI runs that don't touch Cloudflare resources."
+  sensitive   = true
+}
+
+variable "cloudflare_zone_id" {
+  type        = string
+  default     = ""
+  description = "Cloudflare Zone ID of the domain (from the dashboard Overview page). Empty for CI runs."
+}
