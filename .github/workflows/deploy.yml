@@ -85,8 +85,9 @@ jobs:
           APP_URL=$(gcloud run services describe webhook-inspector-app --region=${{ env.GCP_REGION }} --format='value(status.url)')
           INGESTOR_URL=$(gcloud run services describe webhook-inspector-ingestor --region=${{ env.GCP_REGION }} --format='value(status.url)')
 
-          # Service should respond
-          test "$(curl -sI ${APP_URL}/ | head -1 | tr -d '\r' | awk '{print $2}')" = "404"
+          # Services should respond
+          # App root serves the landing page (200), ingestor has no /, so 404
+          test "$(curl -sI ${APP_URL}/ | head -1 | tr -d '\r' | awk '{print $2}')" = "200"
           test "$(curl -sI ${INGESTOR_URL}/ | head -1 | tr -d '\r' | awk '{print $2}')" = "404"
 
           # Full flow
