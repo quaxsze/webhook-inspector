@@ -1,0 +1,6 @@
+<li class="border border-slate-700 rounded px-4 py-2 font-mono text-sm">
+  <span class="inline-block w-16 font-bold text-emerald-400">{{ req.method }}</span>
+  <span class="text-slate-300">{{ req.path }}</span>
+  <span class="text-slate-500 text-xs ml-2">{{ req.received_at }}</span>
+  <span class="text-slate-500 text-xs ml-2">({{ req.body_size }} bytes)</span>
+</li>
