@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>webhook-inspector — Generate a URL, inspect any webhook live</title>
+  <meta name="description" content="Free webhook inspection: generate a URL, point any webhook at it, see requests in real-time. No signup, URLs expire after 7 days.">
+
+  <!-- Open Graph / social sharing -->
+  <meta property="og:title" content="webhook-inspector">
+  <meta property="og:description" content="Generate a URL, point any webhook at it, see requests live in your browser. Free, no signup.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://app.odessa-inspect.org/">
+
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-mono">
+
+  <main class="max-w-2xl mx-auto px-6 py-16">
+
+    <header class="mb-12">
+      <h1 class="text-3xl font-bold text-emerald-400 mb-3">webhook-inspector</h1>
+      <p class="text-slate-300 text-lg leading-relaxed">
+        Generate a URL, point any webhook at it,<br>
+        inspect the requests live in your browser.
+      </p>
+      <p class="text-slate-500 text-sm mt-3">
+        Free. No signup. URLs expire after 7 days.
+      </p>
+    </header>
+
+    <div class="mb-12">
+      <button
+        id="create-btn"
+        hx-post="/api/endpoints"
+        hx-swap="none"
+        hx-on::after-request="if (event.detail.successful) { window.location.href = '/' + JSON.parse(event.detail.xhr.responseText).token; }"
+        class="bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-bold py-3 px-6 rounded transition-colors"
+      >
+        Create a webhook URL &rarr;
+      </button>
+      <p class="text-slate-500 text-xs mt-2">
+        Click &rarr; unique URL generated &rarr; page redirects to live inspector.
+      </p>
+    </div>
+
+    <section class="mb-12">
+      <h2 class="text-slate-400 text-sm uppercase tracking-wider mb-4">Use cases</h2>
+      <ul class="space-y-2 text-slate-300 text-sm">
+        <li>&middot; Test Stripe / GitHub / Slack webhooks without spinning up a server</li>
+        <li>&middot; Debug what a service POSTs (headers, body, method, IP)</li>
+        <li>&middot; Replace ngrok for one-off captures</li>
+        <li>&middot; Share a URL with a teammate to see traffic in real-time</li>
+      </ul>
+    </section>
+
+    <section class="mb-12 bg-slate-800 rounded p-4 text-sm">
+      <h2 class="text-slate-400 text-xs uppercase tracking-wider mb-2">Quick example</h2>
+      <pre class="text-slate-300 overflow-x-auto"><code># 1. Click the button above. You get a URL like:
+#    https://hook.odessa-inspect.org/h/AbCdEf...
+
+# 2. Use that URL anywhere webhooks are sent. Or curl it:
+curl -X POST -d '{"hello":"world"}' \
+  https://hook.odessa-inspect.org/h/AbCdEf...
+
+# 3. The browser tab shows the request, live.</code></pre>
+    </section>
+
+    <footer class="text-slate-500 text-xs border-t border-slate-700 pt-4">
+      <p>
+        Built with FastAPI + Cloud Run +
+        <a href="https://github.com/quaxsze/webhook-inspector" class="text-emerald-400 hover:underline">open source</a>.
+      </p>
+    </footer>
+
+  </main>
+
+</body>
+</html>
