@@ -130,6 +130,15 @@ async def sse_stream(
     )
 
 
+@router.get("/", response_class=HTMLResponse)
+async def landing(request: Request) -> HTMLResponse:
+    templates = request.app.state.templates
+    return cast(
+        HTMLResponse,
+        templates.TemplateResponse(request=request, name="landing.html", context={}),
+    )
+
+
 @router.get("/{token}", response_class=HTMLResponse)
 async def viewer(
     token: str,
