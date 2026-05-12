@@ -21,3 +21,20 @@ resource "google_service_account" "scheduler" {
   display_name = "Webhook Inspector — Scheduler"
   description  = "Cloud Scheduler SA to invoke the cleaner job."
 }
+
+# Cloud SQL client role for runtime SAs that connect to the DB
+locals {
+  cloudsql_client_sas = [
+    google_service_account.ingestor.email,
+    google_service_account.app.email,
+    google_service_account.cleaner.email,
+  ]
+}
+
+resource "google_project_iam_member" "cloudsql_client" {
+  for_each = toset(local.cloudsql_client_sas)
+
+  project = var.project_id
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:${each.value}"
+}

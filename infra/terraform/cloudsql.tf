@@ -12,7 +12,8 @@ resource "google_sql_database_instance" "main" {
 
   settings {
     tier              = var.db_tier
-    availability_type = "ZONAL" # no HA in dev
+    edition           = "ENTERPRISE" # required for shared-core tiers like db-f1-micro
+    availability_type = "ZONAL"      # no HA in dev
     disk_size         = 10
     disk_type         = "PD_SSD"
     disk_autoresize   = true
