@@ -24,7 +24,14 @@ PROXY_PID=$!
 trap "kill $PROXY_PID 2>/dev/null || true" EXIT
 
 # Wait for proxy ready
-sleep 3
+echo "==> Waiting for cloud-sql-proxy to be ready..."
+for _ in $(seq 1 30); do
+  if pg_isready -h localhost -p "$LOCAL_PORT" -U "$DB_USER" >/dev/null 2>&1; then
+    echo "    Proxy ready"
+    break
+  fi
+  sleep 0.5
+done
 
 echo "==> Running alembic upgrade head..."
 PGPASSWORD="$DB_PASSWORD" DATABASE_URL="postgresql+psycopg://${DB_USER}:${DB_PASSWORD}@localhost:${LOCAL_PORT}/${DB_NAME}" \
