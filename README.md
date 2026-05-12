@@ -9,7 +9,9 @@
 
 A self-hostable webhook inspection service. Generate a URL, point any webhook at it, see requests in real-time in your browser.
 
-This is a learning side-project — see `docs/specs/2026-05-11-webhook-inspector-design.md` for design rationale and roadmap.
+This is a learning side-project to practice modern DevOps on GCP — see `docs/specs/2026-05-11-webhook-inspector-design.md` for design rationale and roadmap.
+
+> **AI-assisted development.** Parts of this codebase were drafted with Claude (Anthropic) acting as a pair programmer. All design decisions, architectural reviews, debugging, and verification are mine. See [`docs/plans/`](docs/plans/) and [`docs/specs/`](docs/specs/) for the design process — the goal is to learn DevOps in public, transparently.
 
 ## Quick start (local)
 
