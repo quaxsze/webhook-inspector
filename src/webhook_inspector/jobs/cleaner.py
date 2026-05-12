@@ -30,7 +30,9 @@ async def run_cleanup(database_url: str) -> int:
 def main() -> None:
     settings = Settings()
     configure_logging(settings.log_level, settings.service_name + "-cleaner")
-    configure_tracing(settings.service_name + "-cleaner", settings.environment, settings.cloud_trace_enabled)
+    configure_tracing(
+        settings.service_name + "-cleaner", settings.environment, settings.cloud_trace_enabled
+    )
     deleted = asyncio.run(run_cleanup(settings.database_url))
     sys.stdout.write(f"deleted {deleted} expired endpoints\n")
 

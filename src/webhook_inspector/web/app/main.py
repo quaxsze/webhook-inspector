@@ -19,7 +19,9 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = Settings()
     configure_logging(settings.log_level, settings.service_name + "-app")
-    configure_tracing(settings.service_name + "-app", settings.environment, settings.cloud_trace_enabled)
+    configure_tracing(
+        settings.service_name + "-app", settings.environment, settings.cloud_trace_enabled
+    )
     instrument_app(app, _engine())
     yield
 

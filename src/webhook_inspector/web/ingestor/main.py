@@ -14,7 +14,9 @@ from webhook_inspector.web.ingestor.routes import router
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = Settings()
     configure_logging(settings.log_level, settings.service_name + "-ingestor")
-    configure_tracing(settings.service_name + "-ingestor", settings.environment, settings.cloud_trace_enabled)
+    configure_tracing(
+        settings.service_name + "-ingestor", settings.environment, settings.cloud_trace_enabled
+    )
     instrument_app(app, _engine())
     yield
 
