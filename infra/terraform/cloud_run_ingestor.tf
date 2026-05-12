@@ -64,6 +64,10 @@ resource "google_cloud_run_v2_service" "ingestor" {
         name  = "ENDPOINT_TTL_DAYS"
         value = tostring(var.endpoint_ttl_days)
       }
+      env {
+        name  = "CLOUD_TRACE_ENABLED"
+        value = "true"
+      }
     }
 
     volumes {
@@ -81,6 +85,7 @@ resource "google_cloud_run_v2_service" "ingestor" {
 
   depends_on = [
     google_project_iam_member.cloudsql_client,
+    google_project_iam_member.trace_writer,
     google_secret_manager_secret_iam_member.database_url_ingestor,
     google_storage_bucket_iam_member.ingestor_writer,
   ]

@@ -43,6 +43,10 @@ resource "google_cloud_run_v2_job" "cleaner" {
           name  = "ENDPOINT_TTL_DAYS"
           value = tostring(var.endpoint_ttl_days)
         }
+        env {
+          name  = "CLOUD_TRACE_ENABLED"
+          value = "true"
+        }
       }
 
       volumes {
@@ -56,6 +60,7 @@ resource "google_cloud_run_v2_job" "cleaner" {
 
   depends_on = [
     google_project_iam_member.cloudsql_client,
+    google_project_iam_member.trace_writer,
     google_secret_manager_secret_iam_member.database_url_cleaner,
   ]
 }

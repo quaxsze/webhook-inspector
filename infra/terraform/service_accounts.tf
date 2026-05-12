@@ -38,3 +38,20 @@ resource "google_project_iam_member" "cloudsql_client" {
   role    = "roles/cloudsql.client"
   member  = "serviceAccount:${each.value}"
 }
+
+# Cloud Trace agent role for all runtime SAs (least-privilege trace writes)
+locals {
+  trace_writer_sas = [
+    google_service_account.ingestor.email,
+    google_service_account.app.email,
+    google_service_account.cleaner.email,
+  ]
+}
+
+resource "google_project_iam_member" "trace_writer" {
+  for_each = toset(local.trace_writer_sas)
+
+  project = var.project_id
+  role    = "roles/cloudtrace.agent"
+  member  = "serviceAccount:${each.value}"
+}

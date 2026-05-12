@@ -42,6 +42,10 @@ resource "google_cloud_run_v2_job" "migrator" {
           name  = "LOG_LEVEL"
           value = "INFO"
         }
+        env {
+          name  = "CLOUD_TRACE_ENABLED"
+          value = "true"
+        }
       }
 
       volumes {
@@ -55,6 +59,7 @@ resource "google_cloud_run_v2_job" "migrator" {
 
   depends_on = [
     google_project_iam_member.cloudsql_client,
+    google_project_iam_member.trace_writer,
     google_secret_manager_secret_iam_member.database_url_cleaner,
   ]
 }
