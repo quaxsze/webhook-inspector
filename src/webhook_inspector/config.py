@@ -14,3 +14,4 @@ class Settings(BaseSettings):
     environment: str = "local"
     service_name: str = "webhook-inspector"
     log_level: str = "INFO"
+    cloud_trace_enabled: bool = False

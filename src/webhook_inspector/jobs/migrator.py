@@ -17,7 +17,7 @@ def main() -> None:
     configure_tracing(
         settings.service_name + "-migrator",
         settings.environment,
-        otlp_endpoint=None,  # console exporter in jobs (short-lived)
+        cloud_trace_enabled=settings.cloud_trace_enabled,
     )
 
     logger.info("starting migration")

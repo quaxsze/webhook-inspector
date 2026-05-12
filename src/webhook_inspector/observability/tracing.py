@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry.sdk.resources import Resource
@@ -14,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 
 def configure_tracing(
-    service_name: str, environment: str, otlp_endpoint: str | None = None
+    service_name: str, environment: str, cloud_trace_enabled: bool = False
 ) -> None:
     resource = Resource.create(
         {
@@ -24,8 +23,10 @@ def configure_tracing(
     )
     provider = TracerProvider(resource=resource)
 
-    if otlp_endpoint:
-        provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=otlp_endpoint)))
+    if cloud_trace_enabled:
+        from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
+
+        provider.add_span_processor(BatchSpanProcessor(CloudTraceSpanExporter()))  # type: ignore[no-untyped-call]
     else:
         # SimpleSpanProcessor for console: synchronous, no daemon thread.
         # Avoids stdout-already-closed errors when pytest exits.
