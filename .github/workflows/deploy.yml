@@ -85,10 +85,15 @@ jobs:
           APP_URL=$(gcloud run services describe webhook-inspector-app --region=${{ env.GCP_REGION }} --format='value(status.url)')
           INGESTOR_URL=$(gcloud run services describe webhook-inspector-ingestor --region=${{ env.GCP_REGION }} --format='value(status.url)')
 
-          # Services should respond
-          # App root serves the landing page (200), ingestor has no /, so 404
-          test "$(curl -sI ${APP_URL}/ | head -1 | tr -d '\r' | awk '{print $2}')" = "200"
-          test "$(curl -sI ${INGESTOR_URL}/ | head -1 | tr -d '\r' | awk '{print $2}')" = "404"
+          # Services should respond.
+          # App root serves the landing page (200, GET only — HEAD returns 405).
+          # Ingestor has no '/' route at all, so 404.
+          APP_ROOT=$(curl -s -o /dev/null -w '%{http_code}' ${APP_URL}/)
+          INGESTOR_ROOT=$(curl -s -o /dev/null -w '%{http_code}' ${INGESTOR_URL}/)
+          echo "App root: $APP_ROOT (expected 200)"
+          echo "Ingestor root: $INGESTOR_ROOT (expected 404)"
+          test "$APP_ROOT" = "200" || { echo "app root unhealthy"; exit 1; }
+          test "$INGESTOR_ROOT" = "404" || { echo "ingestor root unhealthy"; exit 1; }
 
           # Full flow
           TOKEN=$(curl -sX POST ${APP_URL}/api/endpoints | python3 -c "import sys,json;print(json.load(sys.stdin)['token'])")
