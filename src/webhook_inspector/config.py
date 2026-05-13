@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     endpoint_ttl_days: int = 7
     max_body_bytes: int = 10 * 1024 * 1024
     body_inline_threshold_bytes: int = 8 * 1024
+    export_max_requests: int = 10_000
     environment: str = "local"
     service_name: str = "webhook-inspector"
     log_level: str = "INFO"
