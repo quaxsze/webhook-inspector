@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from webhook_inspector.domain.entities.endpoint import Endpoint
 from webhook_inspector.domain.ports.endpoint_repository import EndpointRepository
+from webhook_inspector.domain.ports.metrics_collector import MetricsCollector
 from webhook_inspector.domain.services.token_generator import generate_token
 
 
@@ -9,6 +10,7 @@ from webhook_inspector.domain.services.token_generator import generate_token
 class CreateEndpoint:
     repo: EndpointRepository
     ttl_days: int
+    metrics: MetricsCollector
 
     async def execute(
         self,
@@ -27,4 +29,5 @@ class CreateEndpoint:
             response_delay_ms=response_delay_ms,
         )
         await self.repo.save(endpoint)
+        self.metrics.endpoint_created()
         return endpoint
