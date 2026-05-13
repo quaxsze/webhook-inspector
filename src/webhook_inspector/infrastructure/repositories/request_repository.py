@@ -55,13 +55,21 @@ class PostgresRequestRepository(RequestRepository):
         )
 
         if before_id is not None:
-            cursor = (
+            cursor_row = (
                 await self._session.execute(
-                    select(RequestTable.received_at).where(RequestTable.id == before_id)  # type: ignore[call-overload]  # SQLAlchemy/mypy strict incompat
+                    select(RequestTable.received_at, RequestTable.id).where(  # type: ignore[call-overload]  # SQLAlchemy/mypy strict incompat
+                        RequestTable.id == before_id  # type: ignore[arg-type]
+                    )
                 )
-            ).scalar_one_or_none()
-            if cursor is not None:
-                stmt = stmt.where(RequestTable.received_at < cursor)
+            ).one_or_none()
+            if cursor_row is not None:
+                cursor_ts, cursor_id = cursor_row
+                stmt = stmt.where(  # type: ignore[arg-type]
+                    (RequestTable.received_at < cursor_ts)
+                    | (
+                        (RequestTable.received_at == cursor_ts) & (RequestTable.id < cursor_id)  # type: ignore[arg-type]
+                    )
+                )
 
         rows = (await self._session.execute(stmt)).scalars().all()
         return [_to_entity(r) for r in rows]
