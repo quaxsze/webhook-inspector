@@ -157,10 +157,14 @@ async def list_requests(
     token: str,
     limit: int = 50,
     before_id: UUID | None = None,
+    q: str | None = None,
     use_case: ListRequests = Depends(get_list_requests),  # noqa: B008
 ) -> RequestList:
+    if q is not None and len(q) > 200:
+        raise HTTPException(status_code=400, detail="q must be <= 200 characters")
+
     try:
-        items = await use_case.execute(token=token, limit=limit, before_id=before_id)
+        items = await use_case.execute(token=token, limit=limit, before_id=before_id, q=q)
     except EndpointNotFoundError as e:
         raise HTTPException(status_code=404, detail="endpoint not found") from e
 
@@ -179,6 +183,48 @@ async def list_requests(
         ],
         next_before_id=items[-1].id if len(items) == limit else None,
     )
+
+
+@router.get("/api/endpoints/{token}/requests.fragment", response_class=HTMLResponse)
+async def list_requests_fragment(
+    token: str,
+    request: Request,
+    limit: int = 50,
+    before_id: UUID | None = None,
+    q: str | None = None,
+    use_case: ListRequests = Depends(get_list_requests),  # noqa: B008
+) -> HTMLResponse:
+    """Return rendered <li> rows for HTMX-driven search.
+
+    Used by the viewer's search input. Reuses request_fragment.html so the markup
+    matches what SSE pushes for live updates.
+    """
+    if q is not None and len(q) > 200:
+        raise HTTPException(status_code=400, detail="q must be <= 200 characters")
+
+    try:
+        items = await use_case.execute(token=token, limit=limit, before_id=before_id, q=q)
+    except EndpointNotFoundError as e:
+        raise HTTPException(status_code=404, detail="endpoint not found") from e
+
+    templates = request.app.state.templates
+    hook_url = f"{hook_base_url(request)}/h/{token}"
+    fragment_template = templates.env.get_template("request_fragment.html")
+    rendered = "".join(
+        fragment_template.render(
+            req={
+                "method": r.method,
+                "path": r.path,
+                "body_size": r.body_size,
+                "received_at": r.received_at.isoformat(),
+                "headers": r.headers,
+                "body_preview": r.body_preview,
+            },
+            hook_url=hook_url,
+        )
+        for r in items
+    )
+    return HTMLResponse(content=rendered)
 
 
 @router.get("/stream/{token}")
