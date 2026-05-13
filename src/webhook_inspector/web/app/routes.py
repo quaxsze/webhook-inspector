@@ -1,5 +1,6 @@
 import re
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from typing import Annotated, cast
 from uuid import UUID
 
@@ -10,6 +11,10 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from webhook_inspector.application.use_cases.create_endpoint import CreateEndpoint
+from webhook_inspector.application.use_cases.export_requests import (
+    ExportRequests,
+    ExportTooLargeError,
+)
 from webhook_inspector.application.use_cases.list_requests import (
     EndpointNotFoundError,
     ListRequests,
@@ -24,6 +29,7 @@ from webhook_inspector.infrastructure.notifications.postgres_notifier import Pos
 from webhook_inspector.web.app.deps import (
     _session_factory,
     get_create_endpoint,
+    get_export_requests,
     get_list_requests,
     get_notifier,
     get_session,
@@ -225,6 +231,35 @@ async def list_requests_fragment(
         for r in items
     )
     return HTMLResponse(content=rendered)
+
+
+@router.get("/api/endpoints/{token}/export.json")
+async def export_endpoint(
+    token: str,
+    use_case: ExportRequests = Depends(get_export_requests),  # noqa: B008
+) -> StreamingResponse:
+    stream = use_case.execute(token=token)
+
+    # Probe the stream so 404 / 413 surface BEFORE the StreamingResponse opens.
+    # The async generator only raises on first __anext__.
+    try:
+        first = await stream.__anext__()
+    except EndpointNotFoundError as e:
+        raise HTTPException(status_code=404, detail="endpoint not found") from e
+    except ExportTooLargeError as e:
+        raise HTTPException(status_code=413, detail=str(e)) from e
+
+    async def merged() -> AsyncIterator[bytes]:
+        yield first
+        async for chunk in stream:
+            yield chunk
+
+    filename = f"webhook-inspector-{token}-{datetime.now(UTC):%Y%m%d}.json"
+    return StreamingResponse(
+        merged(),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/stream/{token}")
