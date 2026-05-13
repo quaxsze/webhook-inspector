@@ -35,6 +35,22 @@ up: ## Start docker-compose stack
 down: ## Stop docker-compose stack and remove volumes
 	docker compose down -v
 
+dev-postgres: ## Start postgres in docker (for local dev with hot reload)
+	docker compose up -d postgres
+	@echo "Postgres ready. Set DATABASE_URL in your shell, e.g.:"
+	@echo "  export DATABASE_URL=postgresql+psycopg://webhook:webhook@localhost:5434/webhook_inspector"
+
+dev-app: ## Run app with uvicorn --reload (postgres must be up + DATABASE_URL set)
+	uv run uvicorn webhook_inspector.web.app.main:app --reload --port 8000
+
+dev-ingestor: ## Run ingestor with uvicorn --reload (postgres must be up + DATABASE_URL set)
+	uv run uvicorn webhook_inspector.web.ingestor.main:app --reload --port 8001
+
+dev: dev-postgres ## Start postgres + reminder to run dev-app / dev-ingestor in separate terminals
+	@echo ""
+	@echo "→ In a second terminal: make dev-app"
+	@echo "→ In a third terminal:  make dev-ingestor"
+
 migrate: ## Run alembic migrations
 	uv run alembic upgrade head
 

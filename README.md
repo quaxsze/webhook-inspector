@@ -98,6 +98,19 @@ make up        # full docker-compose stack
 make clean     # run cleaner job manually
 ```
 
+For faster iteration with hot reload:
+
+```bash
+make dev-postgres
+# In a second terminal:
+export DATABASE_URL=postgresql+psycopg://webhook:webhook@localhost:5434/webhook_inspector
+make dev-app
+# In a third terminal:
+make dev-ingestor
+```
+
+This runs the FastAPI services locally with `uvicorn --reload` so code changes take effect without rebuilding Docker images.
+
 
 ## Production deployment
 
