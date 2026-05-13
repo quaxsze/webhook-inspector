@@ -11,6 +11,64 @@ A self-hostable webhook inspection service. Generate a URL, point any webhook at
 
 > **AI-assisted development.** Parts of this codebase were drafted with Claude (Anthropic) acting as a pair programmer. All design decisions, architectural reviews, debugging, and verification are mine.
 
+## Architecture
+
+```
+                       ┌──────────────────────┐
+                       │  Cloudflare DNS      │
+                       │  app.<domain>        │
+                       │  hook.<domain>       │
+                       └──────────┬───────────┘
+                                  │
+              ┌───────────────────┴────────────────────┐
+              ▼                                        ▼
+      ┌──────────────┐                         ┌──────────────┐
+      │  Cloud Run   │                         │  Cloud Run   │
+      │  "app"       │                         │  "ingestor"  │
+      │              │                         │              │
+      │  FastAPI +   │                         │  FastAPI +   │
+      │  Jinja2 +    │                         │  body limits │
+      │  HTMX + SSE  │                         │              │
+      └──────┬───────┘                         └──────┬───────┘
+             │                                        │
+             │   ┌────────────────────────────────────┤
+             │   │                                    │
+             ▼   ▼                                    ▼
+      ┌──────────────────┐                  ┌──────────────────┐
+      │   Cloud SQL      │  LISTEN/NOTIFY   │  Cloud Storage   │
+      │   Postgres 16    │  ◄────────────►  │  body offload    │
+      │   (db-f1-micro)  │                  │  > 8 KB          │
+      └──────────────────┘                  └──────────────────┘
+              ▲
+              │
+      ┌───────┴──────────┐         ┌──────────────────────────┐
+      │ Cloud Run Job    │         │ OTEL → Cloud Trace +     │
+      │ "cleaner"        │         │       Cloud Monitoring   │
+      │ (cron 3 AM UTC)  │         │ + structlog → Logging    │
+      └──────────────────┘         └──────────────────────────┘
+```
+
+**Two FastAPI services + two Cloud Run Jobs sharing one Python package:**
+
+- `app` — viewer UI + REST API + SSE stream (min=1 for warm SSE)
+- `ingestor` — public webhook capture (min=0, scales up to 20)
+- `cleaner` — daily job, deletes expired endpoints
+- `migrator` — runs alembic migrations on each deploy
+
+Stack: Python 3.13 + FastAPI + SQLModel + Cloud Run gen2 + Cloud SQL + Cloud Storage + Cloud Trace + Cloud Monitoring + Terraform/OpenTofu + GitHub Actions + Workload Identity Federation.
+
+The data flow on a webhook capture:
+
+1. Client POSTs to `https://hook.<domain>/h/{token}`
+2. `ingestor` looks up the endpoint, captures method/headers/body/source IP
+3. Bodies > 8 KB offloaded to GCS, smaller ones inline in Postgres
+4. INSERT + `pg_notify('new_request', '...')` in one atomic transaction
+5. `app`'s SSE handlers listening on Postgres NOTIFY receive the request_id
+6. Each open `/stream/{token}` connection that matches receives an HTML fragment over Server-Sent Events
+7. HTMX in the browser inserts the fragment at the top of the live list
+
+See spec at `docs/specs/2026-05-11-webhook-inspector-design.md`.
+
 ## Quick start (local)
 
 Requires Docker + docker-compose.
@@ -40,15 +98,6 @@ make up        # full docker-compose stack
 make clean     # run cleaner job manually
 ```
 
-## Architecture
-
-Two FastAPI services + one job, all sharing the same Python package:
-
-- `app` (port 8000) — UI + API + SSE
-- `ingestor` (port 8001) — webhook capture endpoint (public, adversarial traffic)
-- `cleaner` — cron job, deletes expired endpoints
-
-See spec at `docs/specs/2026-05-11-webhook-inspector-design.md`.
 
 ## Production deployment
 
