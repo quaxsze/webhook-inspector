@@ -34,6 +34,7 @@ def test_validate_slug_rejects_invalid_format(slug):
         "api",
         "h",
         "health",
+        "healthz",
         "stream",
         "static",
         "admin",

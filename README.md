@@ -188,7 +188,7 @@ Notes / limitations:
 curl -OJ "https://app.odessa-inspect.org/api/endpoints/$TOKEN/export.json"
 ```
 
-Streams a single JSON file with full bodies (including bodies offloaded to GCS, fetched on-the-fly). Cap: 10 000 requests per export (`WEBHOOK_INSPECTOR_EXPORT_MAX_REQUESTS` env override). Beyond the cap returns 413; filter-then-export will land in V3.
+Streams a single JSON file with full bodies (including bodies offloaded to GCS, fetched on-the-fly). Cap: 10 000 requests per export (`EXPORT_MAX_REQUESTS` env override). Beyond the cap returns 413; filter-then-export will land in V3.
 
 Response format:
 

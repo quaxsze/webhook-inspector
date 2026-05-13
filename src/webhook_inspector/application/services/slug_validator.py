@@ -11,6 +11,7 @@ RESERVED_SLUGS: frozenset[str] = frozenset(
         "api",
         "h",
         "health",
+        "healthz",
         "stream",
         "static",
         "admin",
