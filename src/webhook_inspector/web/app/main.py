@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -7,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.templating import Jinja2Templates
 
 from webhook_inspector.config import Settings
+from webhook_inspector.infrastructure.notifications.postgres_notifier import PostgresNotifier
 from webhook_inspector.observability.logging import configure_logging
 from webhook_inspector.observability.metrics import configure_metrics
 from webhook_inspector.observability.tracing import configure_tracing, instrument_app
@@ -31,6 +33,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         cloud_metrics_enabled=settings.cloud_metrics_enabled,
     )
 
+    # Build notifier once and store on app.state so request-scoped deps can read it.
+    sync_dsn = settings.database_url.replace("+psycopg_async", "").replace("+psycopg", "")
+    notifier = PostgresNotifier(dsn=sync_dsn)
+    await notifier.start()
+    app.state.notifier = notifier
+
     instrument_app(app, _engine())
 
     # Background task: sample active endpoints count every 60s
@@ -39,6 +47,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+        await notifier.stop()
 
 
 async def _active_endpoints_gauge_loop() -> None:
