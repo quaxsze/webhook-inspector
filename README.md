@@ -65,12 +65,37 @@ Trace data is exported to Google Cloud Trace. View traces:
 gcloud trace traces list --limit=10
 ```
 
+## Custom response
+
+By default a captured webhook gets `200 OK` with body `{"ok":true}`. You can customize this when creating an endpoint:
+
+```bash
+curl -X POST https://app.odessa-inspect.org/api/endpoints \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "response": {
+      "status_code": 201,
+      "body": "{\"created\":true}",
+      "headers": {"Content-Type": "application/json"},
+      "delay_ms": 0
+    }
+  }'
+```
+
+Constraints:
+- `status_code` in `[100, 599]`
+- `delay_ms` in `[0, 30000]`
+- `body` up to 64 KiB
+- `headers` cannot override `Content-Length`, `Transfer-Encoding`, `Connection`, `Host`, `Date`
+
+You can also configure all of this via the landing page's "Advanced options" disclosure.
+
 ## Roadmap
 
 | Phase | Status | Focus |
 |-------|--------|-------|
 | V1 | ✅ Live | MVP: 5 endpoints + live viewer + Cloud Run + WIF CI/CD + custom domain + Cloud Trace |
-| V2 | 🟡 Planned | Custom response (status/body) + replay + custom OTEL metrics + Cloud Monitoring dashboards |
+| V2 | ✅ Live | Custom response + copy-as-curl + custom OTEL metrics + Cloud Monitoring dashboards + alerting |
 | V3 | 🟡 Planned | Forward webhook to a target URL (Pub/Sub + worker + DLQ + retry) |
 | V4 | 🟡 Planned | Rate limiting + Cloudflare WAF + Memorystore Redis |
 | V5 | 🟡 Planned | Google OAuth auth + claimed URLs + long-term history |

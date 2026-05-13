@@ -16,6 +16,15 @@ This file is loaded automatically by Claude Code when working in this repo. It d
 - **pre-commit** is installed — `git commit` runs ruff format + ruff check + a few hygiene hooks automatically. If a hook reformats, re-stage and re-commit.
 - **Make targets**: `make lint`, `make type`, `make test`, `make up`, `make down`, `make migrate`, `make clean`.
 
+## Metrics conventions (V2+)
+
+- Use cases depend on `domain/ports/metrics_collector.py:MetricsCollector` ABC, never on OTEL directly.
+- Adapter `infrastructure/observability/otel_metrics_collector.py` wraps the OTEL Meter.
+- Cardinality is strict — labels limited to `method` (uppercase HTTP verb), `body_offloaded` (bool), `success` (bool). No label may include user-controlled values (token, IP, endpoint_id).
+- New metrics go through code review : think about cardinality before adding any label.
+- Short-lived jobs (cleaner, migrator) must call `force_flush_metrics()` before exit, or datapoints are lost.
+- Heartbeat counters (always +1 per run) are required for absence-based alerts to work reliably.
+
 ## Development discipline
 
 - **Test-Driven Development**: write the failing test first, run it to confirm it fails, write the minimum code to pass, run it to confirm it passes, then commit.
