@@ -9,7 +9,7 @@
 
 A self-hostable webhook inspection service. Generate a URL, point any webhook at it, see requests in real-time in your browser.
 
-> **AI-assisted development.** Parts of this codebase were drafted with Claude (Anthropic) acting as a pair programmer. All design decisions, architectural reviews, debugging, and verification are mine. See [`docs/plans/`](docs/plans/) and [`docs/specs/`](docs/specs/) for the design process — the goal is to learn DevOps in public, transparently.
+> **AI-assisted development.** Parts of this codebase were drafted with Claude (Anthropic) acting as a pair programmer. All design decisions, architectural reviews, debugging, and verification are mine.
 
 ## Quick start (local)
 
