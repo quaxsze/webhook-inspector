@@ -20,6 +20,10 @@ class PostgresEndpointRepository(EndpointRepository):
             created_at=endpoint.created_at,
             expires_at=endpoint.expires_at,
             request_count=endpoint.request_count,
+            response_status_code=endpoint.response_status_code,
+            response_body=endpoint.response_body,
+            response_headers=endpoint.response_headers,
+            response_delay_ms=endpoint.response_delay_ms,
         )
         self._session.add(row)
         await self._session.flush()
@@ -55,4 +59,8 @@ def _to_entity(row: EndpointTable) -> Endpoint:
         created_at=row.created_at,
         expires_at=row.expires_at,
         request_count=row.request_count,
+        response_status_code=row.response_status_code,
+        response_body=row.response_body,
+        response_headers=row.response_headers,
+        response_delay_ms=row.response_delay_ms,
     )
