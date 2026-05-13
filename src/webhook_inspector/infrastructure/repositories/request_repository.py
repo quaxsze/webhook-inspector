@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from webhook_inspector.domain.entities.captured_request import CapturedRequest
@@ -28,6 +28,13 @@ class PostgresRequestRepository(RequestRepository):
         )
         self._session.add(row)
         await self._session.flush()
+        # Emit NOTIFY in the SAME transaction. Commit will bundle INSERT + NOTIFY
+        # atomically, so listeners cannot see the notification before the row is
+        # visible.
+        await self._session.execute(
+            text("SELECT pg_notify('new_request', :payload);"),
+            {"payload": f"{request.endpoint_id}:{request.id}"},
+        )
 
     async def find_by_id(self, request_id: UUID) -> CapturedRequest | None:
         stmt = select(RequestTable).where(RequestTable.id == request_id)  # type: ignore[arg-type]  # SQLAlchemy/mypy strict incompat

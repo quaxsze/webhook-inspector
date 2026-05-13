@@ -4,8 +4,11 @@ from uuid import UUID
 
 
 class Notifier(ABC):
-    @abstractmethod
-    async def publish_new_request(self, endpoint_id: UUID, request_id: UUID) -> None: ...
+    """Consumer-side port for new-request notifications.
+
+    The producer side is handled by RequestRepository.save() which emits the
+    notification transactionally (NOTIFY in the same transaction as the INSERT).
+    """
 
     @abstractmethod
     def subscribe(self, endpoint_id: UUID) -> AsyncIterator[UUID]:
