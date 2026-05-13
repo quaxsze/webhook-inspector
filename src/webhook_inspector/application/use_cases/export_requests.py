@@ -58,7 +58,12 @@ class ExportRequests:
         # Strip the trailing brace of the header and append the requests array.
         # This lets us stream the array row-by-row without holding all rows in
         # memory at once.
-        prefix = json.dumps(header)[:-1] + ',"requests":['
+        header_dumped = json.dumps(header)
+        # We rely on default json.dumps() ending the dict with `}`. Do NOT pass
+        # indent= or separators= here — the slice [:-1] would then drop a newline
+        # or whitespace instead of the closing brace.
+        assert header_dumped.endswith("}"), "json.dumps(header) must end with '}'"
+        prefix = header_dumped[:-1] + ',"requests":['
         yield prefix.encode()
 
         first = True

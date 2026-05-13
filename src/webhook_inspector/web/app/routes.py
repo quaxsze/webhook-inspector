@@ -19,6 +19,7 @@ from webhook_inspector.application.use_cases.list_requests import (
     EndpointNotFoundError,
     ListRequests,
 )
+from webhook_inspector.domain.entities.captured_request import CapturedRequest
 from webhook_inspector.domain.entities.endpoint import (
     DEFAULT_RESPONSE_BODY,
     DEFAULT_RESPONSE_DELAY_MS,
@@ -158,6 +159,23 @@ class RequestList(BaseModel):
     next_before_id: UUID | None
 
 
+async def _fetch_requests_or_raise(
+    *,
+    token: str,
+    limit: int,
+    before_id: UUID | None,
+    q: str | None,
+    use_case: ListRequests,
+) -> list[CapturedRequest]:
+    """Validate q length and fetch captured requests; raise HTTP errors on failure."""
+    if q is not None and len(q) > 200:
+        raise HTTPException(status_code=400, detail="q must be <= 200 characters")
+    try:
+        return await use_case.execute(token=token, limit=limit, before_id=before_id, q=q)
+    except EndpointNotFoundError as e:
+        raise HTTPException(status_code=404, detail="endpoint not found") from e
+
+
 @router.get("/api/endpoints/{token}/requests", response_model=RequestList)
 async def list_requests(
     token: str,
@@ -166,13 +184,9 @@ async def list_requests(
     q: str | None = None,
     use_case: ListRequests = Depends(get_list_requests),  # noqa: B008
 ) -> RequestList:
-    if q is not None and len(q) > 200:
-        raise HTTPException(status_code=400, detail="q must be <= 200 characters")
-
-    try:
-        items = await use_case.execute(token=token, limit=limit, before_id=before_id, q=q)
-    except EndpointNotFoundError as e:
-        raise HTTPException(status_code=404, detail="endpoint not found") from e
+    items = await _fetch_requests_or_raise(
+        token=token, limit=limit, before_id=before_id, q=q, use_case=use_case
+    )
 
     return RequestList(
         items=[
@@ -205,13 +219,9 @@ async def list_requests_fragment(
     Used by the viewer's search input. Reuses request_fragment.html so the markup
     matches what SSE pushes for live updates.
     """
-    if q is not None and len(q) > 200:
-        raise HTTPException(status_code=400, detail="q must be <= 200 characters")
-
-    try:
-        items = await use_case.execute(token=token, limit=limit, before_id=before_id, q=q)
-    except EndpointNotFoundError as e:
-        raise HTTPException(status_code=404, detail="endpoint not found") from e
+    items = await _fetch_requests_or_raise(
+        token=token, limit=limit, before_id=before_id, q=q, use_case=use_case
+    )
 
     templates = request.app.state.templates
     hook_url = f"{hook_base_url(request)}/h/{token}"

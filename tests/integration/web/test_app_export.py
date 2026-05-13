@@ -7,11 +7,13 @@ from webhook_inspector.web.app.main import app
 
 
 def _reset_deps():
-    from webhook_inspector.web.app import deps
+    from webhook_inspector.web.app import deps as app_deps
+    from webhook_inspector.web.ingestor import deps as ing_deps
 
-    deps.get_settings.cache_clear()
-    deps._engine.cache_clear()
-    deps._session_factory.cache_clear()
+    for m in (app_deps, ing_deps):
+        m.get_settings.cache_clear()
+        m._engine.cache_clear()
+        m._session_factory.cache_clear()
 
 
 async def test_export_returns_streaming_json_with_attachment_header(
