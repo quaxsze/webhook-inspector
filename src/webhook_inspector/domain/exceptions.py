@@ -1,4 +1,8 @@
-"""Typed domain exceptions raised during Endpoint validation."""
+"""Typed domain exceptions raised within the domain layer."""
+
+
+class EndpointNotFoundError(Exception):
+    """Endpoint with the given token does not exist."""
 
 
 class EndpointValidationError(Exception):

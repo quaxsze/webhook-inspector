@@ -2,12 +2,12 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from webhook_inspector.domain.entities.captured_request import CapturedRequest
+from webhook_inspector.domain.exceptions import EndpointNotFoundError
 from webhook_inspector.domain.ports.endpoint_repository import EndpointRepository
 from webhook_inspector.domain.ports.request_repository import RequestRepository
 
-
-class EndpointNotFoundError(Exception):
-    pass
+# Re-export for backward compat with callers that import from this module.
+__all__ = ["EndpointNotFoundError", "ListRequests"]
 
 
 @dataclass

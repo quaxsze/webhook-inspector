@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from webhook_inspector.domain.entities.captured_request import CapturedRequest
 from webhook_inspector.domain.entities.endpoint import Endpoint
+from webhook_inspector.domain.exceptions import EndpointNotFoundError
 from webhook_inspector.domain.ports.blob_storage import BlobStorage
 from webhook_inspector.domain.ports.endpoint_repository import EndpointRepository
 from webhook_inspector.domain.ports.metrics_collector import MetricsCollector
@@ -11,9 +12,8 @@ from webhook_inspector.domain.ports.request_repository import RequestRepository
 
 logger = logging.getLogger(__name__)
 
-
-class EndpointNotFoundError(Exception):
-    pass
+# Re-export for backward compat with callers that import from this module.
+__all__ = ["CaptureRequest", "EndpointNotFoundError"]
 
 
 @dataclass
