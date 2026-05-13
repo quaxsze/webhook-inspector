@@ -77,3 +77,8 @@ variable "cloudflare_zone_id" {
   default     = ""
   description = "Cloudflare Zone ID of the domain (from the dashboard Overview page). Empty for CI runs."
 }
+
+variable "owner_email" {
+  type        = string
+  description = "Email address that receives alert notifications."
+}
