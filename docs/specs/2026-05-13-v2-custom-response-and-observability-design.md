@@ -304,6 +304,14 @@ class AppMetrics:
         )
         self.cleaner_deletions = meter.create_counter(
             "webhook_inspector.cleaner.deletions",
+            description="Number of expired endpoints deleted by the cleaner.",
+        )
+        # Heartbeat counter — incremented EVERY successful run regardless of how
+        # many endpoints were deleted. Backs the 'Cleaner stale' alert which fires
+        # on absence of datapoints in the last 26h.
+        self.cleaner_runs = meter.create_counter(
+            "webhook_inspector.cleaner.runs.completed",
+            description="Cleaner job runs completed successfully.",
         )
 ```
 
@@ -358,7 +366,7 @@ Labels are tightly controlled :
 | `active_sse_connections` | (none) |
 | `cleaner.deletions` | (none) |
 
-No labels for `token`, `endpoint_id`, `source_ip`. Maximum cardinality combo : `requests.captured` has `8 methods × 2 booleans = 16 unique series`. Cloud Monitoring free tier handles up to 100s of series ; we are nowhere near saturation.
+No labels for `token`, `endpoint_id`, `source_ip`. Maximum cardinality combo : `requests.captured` has `7 HTTP methods (GET/POST/PUT/PATCH/DELETE/OPTIONS/HEAD) × 2 booleans = 14 unique series`. Cloud Monitoring free tier handles up to 100s of series ; we are nowhere near saturation.
 
 ### Export pipeline
 
@@ -467,7 +475,7 @@ New variable `owner_email` in `variables.tf` (sourced from `terraform.tfvars`, g
 | High 5xx rate | `run.googleapis.com/request_count` filtered by `response_code_class="5xx"` | rate > 5% of total for 5 min | 5 min | Critical |
 | Cloud SQL CPU | `cloudsql.googleapis.com/database/cpu/utilization` | > 0.80 | 10 min | Warning |
 | Cloud SQL disk | `cloudsql.googleapis.com/database/disk/utilization` | > 0.90 | 5 min | Critical |
-| Cleaner stale | `webhook_inspector.cleaner.deletions` count | no datapoint in last 26h | window 26h | Warning |
+| Cleaner stale | `webhook_inspector.cleaner.runs.completed` count | no datapoint in last 26h (heartbeat counter, always increments — reliable absence detection) | window 26h | Warning |
 
 All policies share the same `notification_channels = [email_owner.id]`.
 
