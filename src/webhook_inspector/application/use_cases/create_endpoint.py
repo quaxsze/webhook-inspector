@@ -1,6 +1,11 @@
 from dataclasses import dataclass
 
-from webhook_inspector.domain.entities.endpoint import Endpoint
+from webhook_inspector.domain.entities.endpoint import (
+    DEFAULT_RESPONSE_BODY,
+    DEFAULT_RESPONSE_DELAY_MS,
+    DEFAULT_RESPONSE_STATUS_CODE,
+    Endpoint,
+)
 from webhook_inspector.domain.ports.endpoint_repository import EndpointRepository
 from webhook_inspector.domain.ports.metrics_collector import MetricsCollector
 from webhook_inspector.domain.services.token_generator import generate_token
@@ -15,10 +20,10 @@ class CreateEndpoint:
     async def execute(
         self,
         *,
-        response_status_code: int = 200,
-        response_body: str = '{"ok":true}',
+        response_status_code: int = DEFAULT_RESPONSE_STATUS_CODE,
+        response_body: str = DEFAULT_RESPONSE_BODY,
         response_headers: dict[str, str] | None = None,
-        response_delay_ms: int = 0,
+        response_delay_ms: int = DEFAULT_RESPONSE_DELAY_MS,
     ) -> Endpoint:
         endpoint = Endpoint.create(
             token=generate_token(),

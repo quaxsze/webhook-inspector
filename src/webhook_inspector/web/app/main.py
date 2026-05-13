@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -7,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.templating import Jinja2Templates
 
 from webhook_inspector.config import Settings
+from webhook_inspector.infrastructure.notifications.postgres_notifier import PostgresNotifier
 from webhook_inspector.observability.logging import configure_logging
 from webhook_inspector.observability.metrics import configure_metrics
 from webhook_inspector.observability.tracing import configure_tracing, instrument_app
@@ -31,6 +33,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         cloud_metrics_enabled=settings.cloud_metrics_enabled,
     )
 
+    # Build notifier once and store on app.state so request-scoped deps can read it.
+    sync_dsn = settings.database_url.replace("+psycopg_async", "").replace("+psycopg", "")
+    notifier = PostgresNotifier(dsn=sync_dsn)
+    await notifier.start()
+    app.state.notifier = notifier
+
     instrument_app(app, _engine())
 
     # Background task: sample active endpoints count every 60s
@@ -39,24 +47,25 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+        await notifier.stop()
 
 
 async def _active_endpoints_gauge_loop() -> None:
-    """Update the active endpoints gauge every 60s via direct SQL count."""
-    from datetime import UTC, datetime
-
+    """Update the active endpoints gauge every 60s via the repository."""
     from opentelemetry import metrics as otel_metrics
-    from sqlalchemy import func, select
+    from opentelemetry.metrics import Observation
 
-    from webhook_inspector.infrastructure.database.models import EndpointTable
+    from webhook_inspector.infrastructure.repositories.endpoint_repository import (
+        PostgresEndpointRepository,
+    )
     from webhook_inspector.web.app.deps import _session_factory
 
     meter = otel_metrics.get_meter("webhook-inspector-app")
     last_value = {"v": 0}
 
     def _callback(_options):  # type: ignore[no-untyped-def]
-        from opentelemetry.metrics import Observation
-
         return [Observation(last_value["v"])]
 
     meter.create_observable_gauge(
@@ -69,14 +78,10 @@ async def _active_endpoints_gauge_loop() -> None:
     while True:
         try:
             async with factory() as s:
-                row = await s.execute(
-                    select(func.count(EndpointTable.id)).where(  # type: ignore[arg-type]
-                        EndpointTable.expires_at > datetime.now(UTC)  # type: ignore[arg-type]
-                    )
-                )
-                last_value["v"] = int(row.scalar() or 0)
-        except Exception:
-            pass  # quiet failure; gauge stays at previous value
+                repo = PostgresEndpointRepository(s)
+                last_value["v"] = await repo.count_active()
+        except Exception:  # noqa: BLE001 — best-effort gauge: any DB/network error must not crash the background loop
+            pass  # gauge stays at previous value
         await asyncio.sleep(60)
 
 

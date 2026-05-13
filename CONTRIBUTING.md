@@ -80,6 +80,21 @@ Look at existing tests (`tests/unit/`, `tests/integration/`) for patterns before
 - New features that aren't in the roadmap (open an issue first)
 - Changes that break tests or weaken type safety
 
+## Branch protection (maintainer)
+
+The `main` branch should have the following rules configured (Settings → Branches in the GitHub UI):
+
+- Require a pull request before merging
+- Require status checks to pass before merging:
+  - `lint`
+  - `type`
+  - `unit`
+  - `integration`
+- Require linear history (squash-merges only)
+- Require conversation resolution before merging
+
+These rules can't be enforced from the repo — they live in GitHub's repo settings. The settings are documented here so a new maintainer (or future-you on a new machine) knows what state is expected.
+
 ## Questions
 
 Open a [discussion](https://github.com/quaxsze/webhook-inspector/discussions) or an issue tagged `question`.

@@ -1,7 +1,7 @@
 from collections.abc import AsyncIterator
 from functools import lru_cache
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from opentelemetry.metrics import Meter
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -66,17 +66,9 @@ def get_metrics() -> MetricsCollector:
     return OtelMetricsCollector(_meter())
 
 
-_notifier: PostgresNotifier | None = None
-
-
-async def get_notifier() -> PostgresNotifier:
-    global _notifier
-    if _notifier is None:
-        settings = get_settings()
-        sync_dsn = settings.database_url.replace("+psycopg_async", "").replace("+psycopg", "")
-        _notifier = PostgresNotifier(dsn=sync_dsn)
-        await _notifier.start()
-    return _notifier
+async def get_notifier(request: Request) -> PostgresNotifier:
+    """Return the PostgresNotifier stored on app.state by the lifespan."""
+    return request.app.state.notifier  # type: ignore[no-any-return]
 
 
 async def get_create_endpoint(

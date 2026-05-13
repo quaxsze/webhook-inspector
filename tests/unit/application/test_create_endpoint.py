@@ -24,6 +24,9 @@ class FakeEndpointRepo(EndpointRepository):
     async def delete_expired(self) -> int:
         return 0
 
+    async def count_active(self) -> int:
+        return len([e for e in self.saved if not e.is_expired()])
+
 
 async def test_creates_and_persists_endpoint():
     repo = FakeEndpointRepo()

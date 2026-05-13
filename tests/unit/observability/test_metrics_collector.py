@@ -48,6 +48,7 @@ def test_request_captured_records_with_labels():
     body_size = _metric_data_points(reader, "webhook_inspector.requests.body_size_bytes")
     assert any(p.sum == 100 for p in body_size)
     duration = _metric_data_points(reader, "webhook_inspector.requests.capture_duration_seconds")
+    # No labels on duration — just verify the value was recorded.
     assert any(p.sum == 0.05 for p in duration)
 
 

@@ -18,6 +18,10 @@ class PostgresNotifier(Notifier):
 
     Channel: ``new_request``
     Payload: ``"<endpoint_id>:<request_id>"``
+
+    The NOTIFY is emitted by PostgresRequestRepository.save() inside the same
+    SQL transaction as the INSERT, ensuring atomicity.  This class only handles
+    the consumer (LISTEN) side.
     """
 
     def __init__(self, dsn: str) -> None:
@@ -29,8 +33,17 @@ class PostgresNotifier(Notifier):
 
     async def start(self) -> None:
         async with self._lock:
-            if self._listen_conn is not None:
+            # Idempotent: if already running, no-op.
+            if (
+                self._listen_conn is not None
+                and self._reader_task is not None
+                and not self._reader_task.done()
+            ):
                 return
+            # Clean up any stale state from a previous crash.
+            if self._listen_conn is not None:
+                with contextlib.suppress(Exception):
+                    await self._listen_conn.close()
             self._listen_conn = await psycopg.AsyncConnection.connect(self._dsn, autocommit=True)
             async with self._listen_conn.cursor() as cur:
                 await cur.execute("LISTEN new_request;")
@@ -47,17 +60,11 @@ class PostgresNotifier(Notifier):
                 await self._listen_conn.close()
                 self._listen_conn = None
 
-    async def publish_new_request(self, endpoint_id: UUID, request_id: UUID) -> None:
-        async with await psycopg.AsyncConnection.connect(self._dsn, autocommit=True) as conn:
-            payload = f"{endpoint_id}:{request_id}"
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT pg_notify('new_request', %s);", (payload,))
-
     def subscribe(self, endpoint_id: UUID) -> AsyncIterator[UUID]:
         return self._subscribe_gen(endpoint_id)
 
     async def _subscribe_gen(self, endpoint_id: UUID) -> AsyncIterator[UUID]:
-        if self._listen_conn is None:
+        if self._listen_conn is None or self._reader_task is None or self._reader_task.done():
             await self.start()
 
         queue: asyncio.Queue[UUID] = asyncio.Queue()
@@ -83,6 +90,14 @@ class PostgresNotifier(Notifier):
                     continue
                 for queue in list(self._queues.get(endpoint_id, ())):
                     queue.put_nowait(request_id)
-        except Exception:
-            logger.exception("notify_reader_crashed")
+        except asyncio.CancelledError:
             raise
+        except Exception:
+            logger.exception("notify_reader_crashed; will reset for recovery")
+            # Mark state as needing re-init so the next subscribe() restarts.
+            async with self._lock:
+                if self._listen_conn is not None:
+                    with contextlib.suppress(Exception):
+                        await self._listen_conn.close()
+                    self._listen_conn = None
+                self._reader_task = None

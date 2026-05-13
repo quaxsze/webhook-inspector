@@ -25,5 +25,9 @@ RUN groupadd -r appuser && useradd -r -u 1001 -g appuser appuser \
     && chown -R appuser:appuser /app
 USER appuser
 
-EXPOSE 8000 8001
+# Single image is used for both `app` and `ingestor` services. Each Cloud Run
+# service overrides CMD to point at its own uvicorn module. The exposed port
+# below is the default for `app`; the ingestor service runs on the same port
+# (Cloud Run sets $PORT and the CMD args adapt).
+EXPOSE 8000
 CMD ["uvicorn", "webhook_inspector.web.app.main:app", "--host", "0.0.0.0", "--port", "8000"]

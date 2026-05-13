@@ -35,7 +35,10 @@ jobs:
         with:
           python-version: "3.13"
       - run: uv sync --frozen
-      - run: uv run pytest tests/unit -v
+      # Coverage scoped to domain + application — the layers that SHOULD be
+      # unit-tested. Infra + web are integration-tested with testcontainers in
+      # the integration job; measuring them here would force a false threshold.
+      - run: uv run pytest tests/unit --cov=src/webhook_inspector/domain --cov=src/webhook_inspector/application --cov-report=xml --cov-fail-under=95 -v
 
   integration:
     runs-on: ubuntu-latest
