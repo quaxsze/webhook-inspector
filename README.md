@@ -156,12 +156,14 @@ You can also configure all of this via the landing page's "Advanced options" dis
 
 | Phase | Status | Focus |
 |-------|--------|-------|
-| V1 | ✅ Live | MVP: 5 endpoints + live viewer + Cloud Run + WIF CI/CD + custom domain + Cloud Trace |
-| V2 | ✅ Live | Custom response + copy-as-curl + custom OTEL metrics + Cloud Monitoring dashboards + alerting |
-| V3 | 🟡 Planned | Forward webhook to a target URL (Pub/Sub + worker + DLQ + retry) |
-| V4 | 🟡 Planned | Rate limiting + Cloudflare WAF + Memorystore Redis |
-| V5 | 🟡 Planned | Google OAuth auth + claimed URLs + long-term history |
-| V6 | 🟡 Planned | Formal SLOs + error budgets + status page |
+| V1 | ✅ Live | MVP : 5 endpoints + live viewer + Cloud Run + WIF CI/CD + custom domain + Cloud Trace |
+| V2 | ✅ Live | Custom response (status/body/headers/delay) + copy-as-curl + custom OTEL metrics + Cloud Monitoring dashboards + alerting |
+| V2.5 | 🟡 Planned | **UX produit** — vanity URL slug + search/filter (Postgres `tsvector` + GIN index) + export captured requests as JSON |
+| V3 | 🟡 Planned | **Forward webhook to target(s)** — URL + Slack + Email (Pub/Sub topic + worker + dead-letter queue + exponential retry + idempotency keys) |
+| V4 | 🟡 Planned | Rate limiting + Cloudflare WAF custom rules + Memorystore Redis (distributed counters) |
+| V5 | 🟡 Planned | **Auth + power user** — Google OAuth + claimed URLs + activity log per-account + statistics charts + API tokens + (optional) DNSBL lookup |
+| V6 | 🟡 Planned | Formal SLOs + error budgets + status page publique + first real postmortem |
+| V7+ | 🟡 Future | WebSocket inspection (new protocol dimension) + SMTP/email capture (new service infra) — explored as desire dictates |
 
 See [`docs/specs/`](docs/specs/) for design rationale per phase.
 
