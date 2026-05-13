@@ -100,6 +100,8 @@ class RequestItem(BaseModel):
     id: UUID
     method: str
     path: str
+    headers: dict[str, str]
+    body_preview: str | None
     body_size: int
     received_at: str
 
@@ -127,6 +129,8 @@ async def list_requests(
                 id=r.id,
                 method=r.method,
                 path=r.path,
+                headers=r.headers,
+                body_preview=r.body_preview,
                 body_size=r.body_size,
                 received_at=r.received_at.isoformat(),
             )
@@ -139,10 +143,12 @@ async def list_requests(
 @router.get("/stream/{token}")
 async def sse_stream(
     token: str,
+    request: Request,
     notifier: PostgresNotifier = Depends(get_notifier),  # noqa: B008
 ) -> StreamingResponse:
     try:
-        gen = stream_for_token(token, _session_factory(), notifier)
+        hook_url = f"{hook_base_url(request)}/h/{token}"
+        gen = stream_for_token(token, _session_factory(), notifier, hook_url)
         # Probe to surface 404 before opening stream
         first = await gen.__anext__()
     except EndpointNotFoundError as e:
@@ -195,6 +201,8 @@ async def viewer(
                         "path": r.path,
                         "body_size": r.body_size,
                         "received_at": r.received_at.isoformat(),
+                        "headers": r.headers,
+                        "body_preview": r.body_preview,
                     }
                     for r in initial
                 ],

@@ -21,6 +21,7 @@ async def stream_for_token(
     token: str,
     session_factory: async_sessionmaker[AsyncSession],
     notifier: PostgresNotifier,
+    hook_url: str = "",
 ) -> AsyncIterator[str]:
     async with session_factory() as session:
         endpoint = await PostgresEndpointRepository(session).find_by_token(token)
@@ -41,7 +42,10 @@ async def stream_for_token(
                 "path": req.path,
                 "body_size": req.body_size,
                 "received_at": req.received_at.isoformat(),
-            }
+                "headers": req.headers,
+                "body_preview": req.body_preview,
+            },
+            hook_url=hook_url,
         )
         # SSE multi-line data: one "data:" per line
         encoded = "\n".join(f"data: {line}" for line in html.splitlines())

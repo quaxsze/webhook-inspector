@@ -1,4 +1,13 @@
-<li class="border border-slate-700 rounded px-4 py-2 font-mono text-sm">
+<li class="border border-slate-700 rounded px-4 py-2 font-mono text-sm flex items-center gap-2"
+    data-method="{{ req.method }}"
+    data-url="{{ hook_url }}{{ req.path }}"
+    data-headers='{{ req.headers | tojson }}'
+    data-body='{{ req.body_preview | tojson if req.body_preview is not none else "null" }}'
+    data-body-size="{{ req.body_size }}">
+  <button type="button" class="copy-curl-btn text-slate-400 hover:text-emerald-400" aria-label="Copy as curl"
+          title="Copy as curl">
+    &#128203;
+  </button>
   <span class="inline-block w-16 font-bold text-emerald-400">{{ req.method }}</span>
   <span class="text-slate-300">{{ req.path }}</span>
   <span class="text-slate-500 text-xs ml-2">{{ req.received_at }}</span>
