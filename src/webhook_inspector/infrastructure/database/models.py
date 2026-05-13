@@ -2,7 +2,7 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import Column
-from sqlalchemy.dialects.postgresql import INET, JSONB
+from sqlalchemy.dialects.postgresql import INET, JSONB, TSVECTOR
 from sqlmodel import Field, SQLModel
 
 
@@ -39,3 +39,11 @@ class RequestTable(SQLModel, table=True):
     blob_key: str | None = Field(default=None)
     source_ip: str = Field(sa_column=Column(INET, nullable=False))
     received_at: datetime = Field(nullable=False)
+
+    # V2.5 — generated tsvector column for full-text search. The actual SQL
+    # expression lives in migration 0003; SQLModel just mirrors the column
+    # so SQLAlchemy reflection doesn't choke on the GENERATED ALWAYS clause.
+    search_vector: str | None = Field(
+        default=None,
+        sa_column=Column("search_vector", TSVECTOR, nullable=True),
+    )
