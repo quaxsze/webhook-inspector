@@ -20,6 +20,7 @@ class ListRequests:
         token: str,
         limit: int = 50,
         before_id: UUID | None = None,
+        q: str | None = None,
     ) -> list[CapturedRequest]:
         endpoint = await self.endpoint_repo.find_by_token(token)
         if endpoint is None:
@@ -28,4 +29,5 @@ class ListRequests:
             endpoint_id=endpoint.id,
             limit=limit,
             before_id=before_id,
+            q=q,
         )
