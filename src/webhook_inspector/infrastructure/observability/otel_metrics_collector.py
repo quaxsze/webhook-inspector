@@ -54,7 +54,7 @@ class OtelMetricsCollector(MetricsCollector):
         attrs: dict[str, str | bool] = {"method": method.upper(), "body_offloaded": body_offloaded}
         self._requests_captured.add(1, attrs)
         self._body_size.record(body_size, {"body_offloaded": body_offloaded})
-        self._capture_duration.record(duration_seconds, {"success": True})
+        self._capture_duration.record(duration_seconds)  # no labels — always-true label removed
 
     def cleaner_run(self, deleted: int) -> None:
         self._cleaner_runs.add(1)
