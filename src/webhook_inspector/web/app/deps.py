@@ -2,6 +2,7 @@ from collections.abc import AsyncIterator
 from functools import lru_cache
 
 from fastapi import Depends
+from opentelemetry.metrics import Meter
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -12,6 +13,7 @@ from sqlalchemy.ext.asyncio import (
 from webhook_inspector.application.use_cases.create_endpoint import CreateEndpoint
 from webhook_inspector.application.use_cases.list_requests import ListRequests
 from webhook_inspector.config import Settings
+from webhook_inspector.domain.ports.metrics_collector import MetricsCollector
 from webhook_inspector.infrastructure.notifications.postgres_notifier import PostgresNotifier
 from webhook_inspector.infrastructure.repositories.endpoint_repository import (
     PostgresEndpointRepository,
@@ -48,6 +50,22 @@ async def get_session() -> AsyncIterator[AsyncSession]:
             raise
 
 
+@lru_cache(maxsize=1)
+def _meter() -> Meter:
+    import opentelemetry.metrics as otel_metrics
+
+    return otel_metrics.get_meter("webhook-inspector-app")
+
+
+@lru_cache(maxsize=1)
+def get_metrics() -> MetricsCollector:
+    from webhook_inspector.infrastructure.observability.otel_metrics_collector import (
+        OtelMetricsCollector,
+    )
+
+    return OtelMetricsCollector(_meter())
+
+
 _notifier: PostgresNotifier | None = None
 
 
@@ -68,6 +86,7 @@ async def get_create_endpoint(
     return CreateEndpoint(
         repo=PostgresEndpointRepository(session),
         ttl_days=settings.endpoint_ttl_days,
+        metrics=get_metrics(),
     )
 
 

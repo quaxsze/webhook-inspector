@@ -1,17 +1,18 @@
 import re
 from collections.abc import AsyncIterator
-from typing import cast
+from typing import Annotated, cast
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from webhook_inspector.application.use_cases.create_endpoint import CreateEndpoint
 from webhook_inspector.application.use_cases.list_requests import (
     EndpointNotFoundError,
     ListRequests,
 )
+from webhook_inspector.domain.exceptions import EndpointValidationError
 from webhook_inspector.infrastructure.notifications.postgres_notifier import PostgresNotifier
 from webhook_inspector.web.app.deps import (
     _session_factory,
@@ -47,22 +48,51 @@ def hook_base_url(request: Request) -> str:
     return base
 
 
+class CustomResponseSpec(BaseModel):
+    status_code: int = 200
+    body: str = '{"ok":true}'
+    headers: dict[str, str] = Field(default_factory=dict)
+    delay_ms: int = 0
+
+
+class CreateEndpointRequest(BaseModel):
+    response: CustomResponseSpec | None = None
+
+
 class CreateEndpointResponse(BaseModel):
     url: str
     expires_at: str
     token: str
+    response: CustomResponseSpec
 
 
 @router.post("/api/endpoints", status_code=201, response_model=CreateEndpointResponse)
 async def create_endpoint(
     request: Request,
     use_case: CreateEndpoint = Depends(get_create_endpoint),  # noqa: B008
+    payload: Annotated[CreateEndpointRequest | None, Body()] = None,
 ) -> CreateEndpointResponse:
-    endpoint = await use_case.execute()
+    response_spec = (payload.response if payload else None) or CustomResponseSpec()
+    try:
+        endpoint = await use_case.execute(
+            response_status_code=response_spec.status_code,
+            response_body=response_spec.body,
+            response_headers=response_spec.headers,
+            response_delay_ms=response_spec.delay_ms,
+        )
+    except EndpointValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
     return CreateEndpointResponse(
         url=f"{hook_base_url(request)}/h/{endpoint.token}",
         expires_at=endpoint.expires_at.isoformat(),
         token=endpoint.token,
+        response=CustomResponseSpec(
+            status_code=endpoint.response_status_code,
+            body=endpoint.response_body,
+            headers=endpoint.response_headers,
+            delay_ms=endpoint.response_delay_ms,
+        ),
     )
 
 
@@ -70,6 +100,8 @@ class RequestItem(BaseModel):
     id: UUID
     method: str
     path: str
+    headers: dict[str, str]
+    body_preview: str | None
     body_size: int
     received_at: str
 
@@ -97,6 +129,8 @@ async def list_requests(
                 id=r.id,
                 method=r.method,
                 path=r.path,
+                headers=r.headers,
+                body_preview=r.body_preview,
                 body_size=r.body_size,
                 received_at=r.received_at.isoformat(),
             )
@@ -109,10 +143,12 @@ async def list_requests(
 @router.get("/stream/{token}")
 async def sse_stream(
     token: str,
+    request: Request,
     notifier: PostgresNotifier = Depends(get_notifier),  # noqa: B008
 ) -> StreamingResponse:
     try:
-        gen = stream_for_token(token, _session_factory(), notifier)
+        hook_url = f"{hook_base_url(request)}/h/{token}"
+        gen = stream_for_token(token, _session_factory(), notifier, hook_url)
         # Probe to surface 404 before opening stream
         first = await gen.__anext__()
     except EndpointNotFoundError as e:
@@ -165,6 +201,8 @@ async def viewer(
                         "path": r.path,
                         "body_size": r.body_size,
                         "received_at": r.received_at.isoformat(),
+                        "headers": r.headers,
+                        "body_preview": r.body_preview,
                     }
                     for r in initial
                 ],

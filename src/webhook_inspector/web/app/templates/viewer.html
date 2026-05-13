@@ -26,5 +26,59 @@
       </ul>
     </div>
   </main>
+
+  <div id="toast" class="fixed bottom-4 right-4 bg-slate-800 text-slate-100 px-3 py-2 rounded shadow-lg opacity-0 transition-opacity pointer-events-none">
+    Copied to clipboard
+  </div>
+
+  <script>
+    function showToast() {
+      const t = document.getElementById("toast");
+      t.style.opacity = "1";
+      setTimeout(() => { t.style.opacity = "0"; }, 2000);
+    }
+
+    function buildCurl(li) {
+      const method = li.dataset.method;
+      const url = li.dataset.url;
+      const headers = JSON.parse(li.dataset.headers || "{}");
+      const body = JSON.parse(li.dataset.body);
+      const bodySize = parseInt(li.dataset.bodySize, 10);
+
+      const lines = [`curl -X ${method} '${url.replace(/'/g, "'\\''")}'`];
+      for (const [k, v] of Object.entries(headers)) {
+        // Skip headers curl will set automatically
+        if (["host", "content-length"].includes(k.toLowerCase())) continue;
+        lines.push(`  -H '${k}: ${String(v).replace(/'/g, "'\\''")}'`);
+      }
+      if (body !== null && body !== "") {
+        lines.push(`  -d '${body.replace(/'/g, "'\\''")}'`);
+      } else if (bodySize > 8192) {
+        lines.push(`  # body too large, not inline (size: ${bodySize} bytes)`);
+      }
+      return lines.join(" \\\n");
+    }
+
+    document.getElementById("requests").addEventListener("click", async (e) => {
+      const btn = e.target.closest(".copy-curl-btn");
+      if (!btn) return;
+      const li = btn.closest("li");
+      if (!li) return;
+      const cmd = buildCurl(li);
+      try {
+        await navigator.clipboard.writeText(cmd);
+        showToast();
+      } catch {
+        // Fallback for older browsers
+        const ta = document.createElement("textarea");
+        ta.value = cmd;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        showToast();
+      }
+    });
+  </script>
 </body>
 </html>

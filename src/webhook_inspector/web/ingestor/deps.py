@@ -2,6 +2,7 @@ from collections.abc import AsyncIterator
 from functools import lru_cache
 
 from fastapi import Depends
+from opentelemetry.metrics import Meter
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -12,6 +13,7 @@ from sqlalchemy.ext.asyncio import (
 from webhook_inspector.application.use_cases.capture_request import CaptureRequest
 from webhook_inspector.config import Settings
 from webhook_inspector.domain.ports.blob_storage import BlobStorage
+from webhook_inspector.domain.ports.metrics_collector import MetricsCollector
 from webhook_inspector.infrastructure.notifications.postgres_notifier import PostgresNotifier
 from webhook_inspector.infrastructure.repositories.endpoint_repository import (
     PostgresEndpointRepository,
@@ -41,6 +43,22 @@ def _session_factory() -> async_sessionmaker[AsyncSession]:
 @lru_cache(maxsize=1)
 def _blob_storage() -> BlobStorage:
     return make_blob_storage(get_settings())
+
+
+@lru_cache(maxsize=1)
+def _meter() -> Meter:
+    import opentelemetry.metrics as otel_metrics
+
+    return otel_metrics.get_meter("webhook-inspector-ingestor")
+
+
+@lru_cache(maxsize=1)
+def get_metrics() -> MetricsCollector:
+    from webhook_inspector.infrastructure.observability.otel_metrics_collector import (
+        OtelMetricsCollector,
+    )
+
+    return OtelMetricsCollector(_meter())
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
@@ -78,4 +96,5 @@ async def get_capture_request(
         blob_storage=_blob_storage(),
         notifier=notifier,
         inline_threshold=settings.body_inline_threshold_bytes,
+        metrics=get_metrics(),
     )

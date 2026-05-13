@@ -17,3 +17,4 @@ class Settings(BaseSettings):
     service_name: str = "webhook-inspector"
     log_level: str = "INFO"
     cloud_trace_enabled: bool = False
+    cloud_metrics_enabled: bool = False

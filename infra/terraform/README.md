@@ -85,6 +85,37 @@ To re-do the DNS setup:
 5. `tofu apply` — creates Cloud Run domain mappings + Cloudflare CNAMEs
 6. Wait 5-30 min for Google-managed TLS certs to provision
 
+## Monitoring & alerting
+
+Dashboard URL (after `tofu apply`):
+
+```bash
+cd infra/terraform
+tofu output dashboard_url
+```
+
+Alerts active :
+
+- **High p95 ingest latency** — capture_duration p95 > 1s for 5 min
+- **High 5xx rate (ingestor)** — Cloud Run 5xx requests > threshold for 5 min
+- **Cloud SQL CPU saturated** — CPU > 80% for 10 min
+- **Cloud SQL disk pressure** — disk > 90%
+- **Cleaner stale** — no heartbeat in 26h
+
+All routed to `owner_email` via a single notification channel.
+
+### Manual drill
+
+Force a 5xx surge to validate the alert :
+
+```bash
+# Temporarily disable Cloud SQL (returns 5xx on every ingest)
+gcloud sql instances patch webhook-inspector-pg-dev --activation-policy=NEVER
+sleep 300  # 5 min — let the alert fire
+# Check email + alert console
+gcloud sql instances patch webhook-inspector-pg-dev --activation-policy=ALWAYS
+```
+
 ## Tearing down
 
 ```bash

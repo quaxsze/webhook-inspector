@@ -40,6 +40,40 @@ async def test_increment_request_count(session):
     assert found.request_count == 2
 
 
+async def test_save_and_find_persists_custom_response_fields(session):
+    repo = PostgresEndpointRepository(session)
+    endpoint = Endpoint.create(
+        token="custom-resp",
+        ttl_days=7,
+        response_status_code=418,
+        response_body='{"teapot":true}',
+        response_headers={"X-Custom": "yes"},
+        response_delay_ms=200,
+    )
+    await repo.save(endpoint)
+    await session.commit()
+
+    found = await repo.find_by_token("custom-resp")
+    assert found is not None
+    assert found.response_status_code == 418
+    assert found.response_body == '{"teapot":true}'
+    assert found.response_headers == {"X-Custom": "yes"}
+    assert found.response_delay_ms == 200
+
+
+async def test_save_endpoint_with_default_response(session):
+    repo = PostgresEndpointRepository(session)
+    endpoint = Endpoint.create(token="default-resp", ttl_days=7)
+    await repo.save(endpoint)
+    await session.commit()
+
+    found = await repo.find_by_token("default-resp")
+    assert found.response_status_code == 200
+    assert found.response_body == '{"ok":true}'
+    assert found.response_headers == {}
+    assert found.response_delay_ms == 0
+
+
 async def test_delete_expired_removes_only_expired(session):
     repo = PostgresEndpointRepository(session)
     fresh = Endpoint.create(token="fresh", ttl_days=7)
