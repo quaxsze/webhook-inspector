@@ -91,3 +91,23 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = "-ra --strict-markers"
+
+[tool.coverage.run]
+source = ["src/webhook_inspector"]
+branch = true
+parallel = true
+omit = [
+    "src/webhook_inspector/jobs/migrator.py",  # entry-point, side-effect-only
+    "*/migrations/*",
+]
+
+[tool.coverage.report]
+precision = 1
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]

@@ -17,6 +17,9 @@ type: ## Run mypy strict type-check
 test-unit: ## Run unit tests
 	uv run pytest tests/unit -v
 
+coverage: ## Run tests with coverage report (terminal + HTML in htmlcov/)
+	uv run pytest tests --cov --cov-report=term-missing --cov-report=html
+
 test-int: ## Run integration tests
 	uv run pytest tests/integration -v
 
