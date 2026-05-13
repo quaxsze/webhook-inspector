@@ -4,8 +4,10 @@ from typing import Annotated, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from webhook_inspector.application.use_cases.create_endpoint import CreateEndpoint
 from webhook_inspector.application.use_cases.list_requests import (
@@ -24,10 +26,39 @@ from webhook_inspector.web.app.deps import (
     get_create_endpoint,
     get_list_requests,
     get_notifier,
+    get_session,
 )
 from webhook_inspector.web.app.sse import stream_for_token
 
 router = APIRouter()
+
+
+@router.get("/healthz")
+async def healthz(
+    session: AsyncSession = Depends(get_session),  # noqa: B008
+) -> JSONResponse:
+    """Deep health check: pings the database with SELECT 1.
+
+    Returns 200 + {status: healthy} when all checks pass.
+    Returns 503 + {status: unhealthy, checks: {...}} otherwise.
+    """
+    checks: dict[str, str] = {}
+    overall_ok = True
+
+    try:
+        await session.execute(text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception as e:  # noqa: BLE001
+        checks["database"] = f"error: {type(e).__name__}"
+        overall_ok = False
+
+    return JSONResponse(
+        status_code=200 if overall_ok else 503,
+        content={
+            "status": "healthy" if overall_ok else "unhealthy",
+            "checks": checks,
+        },
+    )
 
 
 def hook_base_url(request: Request) -> str:

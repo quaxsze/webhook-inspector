@@ -85,6 +85,10 @@ jobs:
           APP_URL=$(gcloud run services describe webhook-inspector-app --region=${{ env.GCP_REGION }} --format='value(status.url)')
           INGESTOR_URL=$(gcloud run services describe webhook-inspector-ingestor --region=${{ env.GCP_REGION }} --format='value(status.url)')
 
+          # Healthz must respond 200 before we trust other endpoints.
+          test "$(curl -s -o /dev/null -w '%{http_code}' ${APP_URL}/healthz)" = "200" || { echo "app /healthz failed"; exit 1; }
+          test "$(curl -s -o /dev/null -w '%{http_code}' ${INGESTOR_URL}/healthz)" = "200" || { echo "ingestor /healthz failed"; exit 1; }
+
           # Services should respond.
           # App root serves the landing page (200, GET only — HEAD returns 405).
           # Ingestor has no '/' route at all, so 404.

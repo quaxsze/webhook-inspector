@@ -1,15 +1,61 @@
 import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from webhook_inspector.application.use_cases.capture_request import (
     CaptureRequest,
     EndpointNotFoundError,
 )
 from webhook_inspector.config import Settings
-from webhook_inspector.web.ingestor.deps import get_capture_request, get_settings
+from webhook_inspector.web.ingestor.deps import (
+    _blob_storage,
+    get_capture_request,
+    get_session,
+    get_settings,
+)
 
 router = APIRouter()
+
+
+@router.get("/healthz")
+async def healthz(
+    session: AsyncSession = Depends(get_session),  # noqa: B008
+) -> JSONResponse:
+    """Deep health check: pings DB and verifies blob storage is reachable."""
+    checks: dict[str, str] = {}
+    overall_ok = True
+
+    try:
+        await session.execute(text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception as e:  # noqa: BLE001
+        checks["database"] = f"error: {type(e).__name__}"
+        overall_ok = False
+
+    try:
+        storage = _blob_storage()
+        probe_key = "_healthz_probe"
+        await storage.put(probe_key, b"ok")
+        result = await storage.get(probe_key)
+        if result == b"ok":
+            checks["blob_storage"] = "ok"
+        else:
+            checks["blob_storage"] = "error: roundtrip mismatch"
+            overall_ok = False
+    except Exception as e:  # noqa: BLE001
+        checks["blob_storage"] = f"error: {type(e).__name__}"
+        overall_ok = False
+
+    return JSONResponse(
+        status_code=200 if overall_ok else 503,
+        content={
+            "status": "healthy" if overall_ok else "unhealthy",
+            "checks": checks,
+        },
+    )
 
 
 @router.api_route(
