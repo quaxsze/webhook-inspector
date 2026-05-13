@@ -9,8 +9,10 @@ from webhook_inspector.domain.exceptions import (
     ResponseBodyTooLargeError,
 )
 
-_DEFAULT_RESPONSE_BODY = '{"ok":true}'
-_MAX_BODY_BYTES = 65_536
+DEFAULT_RESPONSE_STATUS_CODE = 200
+DEFAULT_RESPONSE_BODY = '{"ok":true}'
+DEFAULT_RESPONSE_DELAY_MS = 0
+_MAX_BODY_BYTES = 65_536  # implementation detail, keep private
 _FORBIDDEN_HEADERS = frozenset(
     ["content-length", "transfer-encoding", "connection", "host", "date"]
 )
@@ -23,10 +25,10 @@ class Endpoint:
     created_at: datetime
     expires_at: datetime
     request_count: int = 0
-    response_status_code: int = 200
-    response_body: str = _DEFAULT_RESPONSE_BODY
+    response_status_code: int = DEFAULT_RESPONSE_STATUS_CODE
+    response_body: str = DEFAULT_RESPONSE_BODY
     response_headers: dict[str, str] = field(default_factory=dict)
-    response_delay_ms: int = 0
+    response_delay_ms: int = DEFAULT_RESPONSE_DELAY_MS
 
     @classmethod
     def create(
@@ -34,10 +36,10 @@ class Endpoint:
         token: str,
         ttl_days: int,
         *,
-        response_status_code: int = 200,
-        response_body: str = _DEFAULT_RESPONSE_BODY,
+        response_status_code: int = DEFAULT_RESPONSE_STATUS_CODE,
+        response_body: str = DEFAULT_RESPONSE_BODY,
         response_headers: dict[str, str] | None = None,
-        response_delay_ms: int = 0,
+        response_delay_ms: int = DEFAULT_RESPONSE_DELAY_MS,
     ) -> "Endpoint":
         if ttl_days <= 0:
             raise ValueError("ttl_days must be positive")

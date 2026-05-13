@@ -12,6 +12,11 @@ from webhook_inspector.application.use_cases.list_requests import (
     EndpointNotFoundError,
     ListRequests,
 )
+from webhook_inspector.domain.entities.endpoint import (
+    DEFAULT_RESPONSE_BODY,
+    DEFAULT_RESPONSE_DELAY_MS,
+    DEFAULT_RESPONSE_STATUS_CODE,
+)
 from webhook_inspector.domain.exceptions import EndpointValidationError
 from webhook_inspector.infrastructure.notifications.postgres_notifier import PostgresNotifier
 from webhook_inspector.web.app.deps import (
@@ -49,10 +54,10 @@ def hook_base_url(request: Request) -> str:
 
 
 class CustomResponseSpec(BaseModel):
-    status_code: int = 200
-    body: str = '{"ok":true}'
+    status_code: int = DEFAULT_RESPONSE_STATUS_CODE
+    body: str = DEFAULT_RESPONSE_BODY
     headers: dict[str, str] = Field(default_factory=dict)
-    delay_ms: int = 0
+    delay_ms: int = DEFAULT_RESPONSE_DELAY_MS
 
 
 class CreateEndpointRequest(BaseModel):
