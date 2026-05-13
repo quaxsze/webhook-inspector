@@ -15,6 +15,15 @@ class EndpointTable(SQLModel, table=True):
     expires_at: datetime = Field(nullable=False, index=True)
     request_count: int = Field(default=0, nullable=False)
 
+    # V2 — custom response
+    response_status_code: int = Field(default=200, nullable=False)
+    response_body: str = Field(default='{"ok":true}', nullable=False)
+    response_headers: dict = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+    )
+    response_delay_ms: int = Field(default=0, nullable=False)
+
 
 class RequestTable(SQLModel, table=True):
     __tablename__ = "requests"
