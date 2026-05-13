@@ -28,6 +28,9 @@ class FakeEndpointRepo(EndpointRepository):
     async def delete_expired(self) -> int:
         return 0
 
+    async def count_active(self) -> int:
+        return 0
+
 
 class FakeRequestRepo(RequestRepository):
     def __init__(self, items):

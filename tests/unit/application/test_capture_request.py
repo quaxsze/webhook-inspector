@@ -35,6 +35,9 @@ class FakeEndpointRepo(EndpointRepository):
     async def delete_expired(self) -> int:
         return 0
 
+    async def count_active(self) -> int:
+        return len([e for e in self.saved if e is not None and not e.is_expired()])
+
 
 class FakeRequestRepo(RequestRepository):
     def __init__(self):

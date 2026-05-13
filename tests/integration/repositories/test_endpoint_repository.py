@@ -74,6 +74,29 @@ async def test_save_endpoint_with_default_response(session):
     assert found.response_delay_ms == 0
 
 
+async def test_count_active_returns_count_of_unexpired_endpoints(session):
+    from datetime import UTC, datetime, timedelta
+    from uuid import uuid4
+
+    repo = PostgresEndpointRepository(session)
+    fresh = Endpoint.create(token=f"fresh-{uuid4().hex[:6]}", ttl_days=7)
+    stale = Endpoint(
+        id=uuid4(),
+        token=f"stale-{uuid4().hex[:6]}",
+        created_at=datetime.now(UTC) - timedelta(days=10),
+        expires_at=datetime.now(UTC) - timedelta(days=3),
+        request_count=0,
+    )
+    await repo.save(fresh)
+    await repo.save(stale)
+    # Flush only (no commit): rows are visible within this session but will be
+    # rolled back at teardown, so they don't leak into other tests' deletes.
+    await session.flush()
+
+    count = await repo.count_active()
+    assert count >= 1  # fresh counts; stale doesn't
+
+
 async def test_delete_expired_removes_only_expired(session):
     repo = PostgresEndpointRepository(session)
     fresh = Endpoint.create(token="fresh", ttl_days=7)

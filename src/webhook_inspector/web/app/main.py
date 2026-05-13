@@ -53,21 +53,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 async def _active_endpoints_gauge_loop() -> None:
-    """Update the active endpoints gauge every 60s via direct SQL count."""
-    from datetime import UTC, datetime
-
+    """Update the active endpoints gauge every 60s via the repository."""
     from opentelemetry import metrics as otel_metrics
-    from sqlalchemy import func, select
+    from opentelemetry.metrics import Observation
 
-    from webhook_inspector.infrastructure.database.models import EndpointTable
+    from webhook_inspector.infrastructure.repositories.endpoint_repository import (
+        PostgresEndpointRepository,
+    )
     from webhook_inspector.web.app.deps import _session_factory
 
     meter = otel_metrics.get_meter("webhook-inspector-app")
     last_value = {"v": 0}
 
     def _callback(_options):  # type: ignore[no-untyped-def]
-        from opentelemetry.metrics import Observation
-
         return [Observation(last_value["v"])]
 
     meter.create_observable_gauge(
@@ -80,12 +78,8 @@ async def _active_endpoints_gauge_loop() -> None:
     while True:
         try:
             async with factory() as s:
-                row = await s.execute(
-                    select(func.count(EndpointTable.id)).where(  # type: ignore[arg-type]
-                        EndpointTable.expires_at > datetime.now(UTC)  # type: ignore[arg-type]
-                    )
-                )
-                last_value["v"] = int(row.scalar() or 0)
+                repo = PostgresEndpointRepository(s)
+                last_value["v"] = await repo.count_active()
         except Exception:
             pass  # quiet failure; gauge stays at previous value
         await asyncio.sleep(60)

@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from webhook_inspector.domain.entities.endpoint import Endpoint
@@ -50,6 +50,13 @@ class PostgresEndpointRepository(EndpointRepository):
         stmt = delete(EndpointTable).where(EndpointTable.expires_at < datetime.now(UTC))  # type: ignore[arg-type]  # SQLAlchemy/mypy strict incompat
         result = await self._session.execute(stmt)
         return result.rowcount or 0  # type: ignore[attr-defined]  # CursorResult has rowcount at runtime
+
+    async def count_active(self) -> int:
+        stmt = select(func.count(EndpointTable.id)).where(  # type: ignore[arg-type]
+            EndpointTable.expires_at > datetime.now(UTC)  # type: ignore[arg-type]
+        )
+        result = await self._session.execute(stmt)
+        return int(result.scalar() or 0)
 
 
 def _to_entity(row: EndpointTable) -> Endpoint:

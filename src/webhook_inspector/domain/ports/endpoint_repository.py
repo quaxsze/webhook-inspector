@@ -20,3 +20,7 @@ class EndpointRepository(ABC):
     @abstractmethod
     async def delete_expired(self) -> int:
         """Delete expired endpoints. Returns count of deleted rows."""
+
+    @abstractmethod
+    async def count_active(self) -> int:
+        """Count endpoints where expires_at > NOW()."""
