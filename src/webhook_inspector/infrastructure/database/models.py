@@ -18,7 +18,7 @@ class EndpointTable(SQLModel, table=True):
     # V2 — custom response
     response_status_code: int = Field(default=200, nullable=False)
     response_body: str = Field(default='{"ok":true}', nullable=False)
-    response_headers: dict = Field(
+    response_headers: dict[str, str] = Field(
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default="{}"),
     )
