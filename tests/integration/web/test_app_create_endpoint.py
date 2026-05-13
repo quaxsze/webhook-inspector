@@ -25,7 +25,7 @@ async def test_post_endpoints_returns_url_and_expiry(monkeypatch, database_url, 
 
 
 @pytest.mark.parametrize(
-    "base_url, expected_hook_prefix",
+    ("base_url", "expected_hook_prefix"),
     [
         ("https://app.example.com", "https://hook.example.com/h/"),
         (
@@ -83,7 +83,7 @@ async def test_post_endpoints_with_custom_response_payload(monkeypatch, database
 
 
 @pytest.mark.parametrize(
-    "bad_response,expected_detail_substring",
+    ("bad_response", "expected_detail_substring"),
     [
         ({"status_code": 700}, "status_code"),
         ({"delay_ms": 60000}, "delay_ms"),
