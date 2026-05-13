@@ -20,7 +20,7 @@ from webhook_inspector.web.ingestor.deps import (
 router = APIRouter()
 
 
-@router.get("/healthz")
+@router.get("/health")
 async def healthz(
     session: AsyncSession = Depends(get_session),  # noqa: B008
 ) -> JSONResponse:

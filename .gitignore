@@ -16,6 +16,10 @@ build/
 blobs/
 .DS_Store
 
+# IDE
+.idea/
+.vscode/
+
 # Terraform
 infra/terraform/.terraform/
 infra/terraform/.terraform.lock.hcl

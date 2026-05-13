@@ -40,7 +40,7 @@ from webhook_inspector.web.app.sse import stream_for_token
 router = APIRouter()
 
 
-@router.get("/healthz")
+@router.get("/health")
 async def healthz(
     session: AsyncSession = Depends(get_session),  # noqa: B008
 ) -> JSONResponse:

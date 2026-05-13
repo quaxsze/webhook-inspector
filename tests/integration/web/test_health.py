@@ -16,7 +16,7 @@ async def test_app_healthz_returns_ok_when_db_reachable(monkeypatch, database_ur
     async with httpx.AsyncClient(
         transport=ASGITransport(app=app_service), base_url="http://test"
     ) as c:
-        resp = await c.get("/healthz")
+        resp = await c.get("/health")
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "healthy"
@@ -38,7 +38,7 @@ async def test_ingestor_healthz_returns_ok_when_db_reachable(
     async with httpx.AsyncClient(
         transport=ASGITransport(app=ingestor_service), base_url="http://test"
     ) as c:
-        resp = await c.get("/healthz")
+        resp = await c.get("/health")
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "healthy"
