@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -7,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 
 from webhook_inspector.config import Settings
 from webhook_inspector.observability.logging import configure_logging
+from webhook_inspector.observability.metrics import configure_metrics
 from webhook_inspector.observability.tracing import configure_tracing, instrument_app
 from webhook_inspector.web.app.deps import _engine
 from webhook_inspector.web.app.routes import router
@@ -20,10 +22,62 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = Settings()
     configure_logging(settings.log_level, settings.service_name + "-app")
     configure_tracing(
-        settings.service_name + "-app", settings.environment, settings.cloud_trace_enabled
+        settings.service_name + "-app",
+        settings.environment,
+        cloud_trace_enabled=settings.cloud_trace_enabled,
     )
+    configure_metrics(
+        service_name=settings.service_name + "-app",
+        cloud_metrics_enabled=settings.cloud_metrics_enabled,
+    )
+
     instrument_app(app, _engine())
-    yield
+
+    # Background task: sample active endpoints count every 60s
+    task = asyncio.create_task(_active_endpoints_gauge_loop())
+    try:
+        yield
+    finally:
+        task.cancel()
+
+
+async def _active_endpoints_gauge_loop() -> None:
+    """Update the active endpoints gauge every 60s via direct SQL count."""
+    from datetime import UTC, datetime
+
+    from opentelemetry import metrics as otel_metrics
+    from sqlalchemy import func, select
+
+    from webhook_inspector.infrastructure.database.models import EndpointTable
+    from webhook_inspector.web.app.deps import _session_factory
+
+    meter = otel_metrics.get_meter("webhook-inspector-app")
+    last_value = {"v": 0}
+
+    def _callback(_options):  # type: ignore[no-untyped-def]
+        from opentelemetry.metrics import Observation
+
+        return [Observation(last_value["v"])]
+
+    meter.create_observable_gauge(
+        "webhook_inspector.endpoints.active",
+        callbacks=[_callback],
+        description="Endpoints not yet expired.",
+    )
+
+    factory = _session_factory()
+    while True:
+        try:
+            async with factory() as s:
+                row = await s.execute(
+                    select(func.count(EndpointTable.id)).where(  # type: ignore[arg-type]
+                        EndpointTable.expires_at > datetime.now(UTC)  # type: ignore[arg-type]
+                    )
+                )
+                last_value["v"] = int(row.scalar() or 0)
+        except Exception:
+            pass  # quiet failure; gauge stays at previous value
+        await asyncio.sleep(60)
 
 
 app = FastAPI(title="Webhook Inspector — App", lifespan=lifespan)
