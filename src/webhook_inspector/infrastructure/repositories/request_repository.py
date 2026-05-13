@@ -58,17 +58,15 @@ class PostgresRequestRepository(RequestRepository):
             cursor_row = (
                 await self._session.execute(
                     select(RequestTable.received_at, RequestTable.id).where(  # type: ignore[call-overload]  # SQLAlchemy/mypy strict incompat
-                        RequestTable.id == before_id  # type: ignore[arg-type]
+                        RequestTable.id == before_id
                     )
                 )
             ).one_or_none()
             if cursor_row is not None:
                 cursor_ts, cursor_id = cursor_row
-                stmt = stmt.where(  # type: ignore[arg-type]
+                stmt = stmt.where(
                     (RequestTable.received_at < cursor_ts)
-                    | (
-                        (RequestTable.received_at == cursor_ts) & (RequestTable.id < cursor_id)  # type: ignore[arg-type]
-                    )
+                    | ((RequestTable.received_at == cursor_ts) & (RequestTable.id < cursor_id))
                 )
 
         rows = (await self._session.execute(stmt)).scalars().all()
