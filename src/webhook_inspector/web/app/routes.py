@@ -19,7 +19,7 @@ from webhook_inspector.domain.entities.endpoint import (
     DEFAULT_RESPONSE_DELAY_MS,
     DEFAULT_RESPONSE_STATUS_CODE,
 )
-from webhook_inspector.domain.exceptions import EndpointValidationError
+from webhook_inspector.domain.exceptions import EndpointValidationError, SlugAlreadyTakenError
 from webhook_inspector.infrastructure.notifications.postgres_notifier import PostgresNotifier
 from webhook_inspector.web.app.deps import (
     _session_factory,
@@ -93,6 +93,7 @@ class CustomResponseSpec(BaseModel):
 
 class CreateEndpointRequest(BaseModel):
     response: CustomResponseSpec | None = None
+    slug: str | None = None
 
 
 class CreateEndpointResponse(BaseModel):
@@ -109,13 +110,17 @@ async def create_endpoint(
     payload: Annotated[CreateEndpointRequest | None, Body()] = None,
 ) -> CreateEndpointResponse:
     response_spec = (payload.response if payload else None) or CustomResponseSpec()
+    slug = payload.slug if payload else None
     try:
         endpoint = await use_case.execute(
+            slug=slug,
             response_status_code=response_spec.status_code,
             response_body=response_spec.body,
             response_headers=response_spec.headers,
             response_delay_ms=response_spec.delay_ms,
         )
+    except SlugAlreadyTakenError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     except EndpointValidationError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
