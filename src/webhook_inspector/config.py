@@ -19,3 +19,6 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     cloud_trace_enabled: bool = False
     cloud_metrics_enabled: bool = False
+    # 10% sampling stays well under Cloud Trace's 2.5M spans/month free tier
+    # even at 10x current traffic. Set TRACE_SAMPLE_RATIO=1.0 in dev for full traces.
+    trace_sample_ratio: float = 0.1

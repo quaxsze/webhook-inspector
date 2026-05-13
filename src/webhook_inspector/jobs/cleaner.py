@@ -45,6 +45,7 @@ def main() -> None:
         settings.service_name + "-cleaner",
         settings.environment,
         cloud_trace_enabled=settings.cloud_trace_enabled,
+        sample_ratio=settings.trace_sample_ratio,
     )
 
     # Wire metrics (lazy import — short-lived job, keep boot fast)

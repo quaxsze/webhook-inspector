@@ -9,19 +9,25 @@ from opentelemetry.sdk.trace.export import (
     ConsoleSpanExporter,
     SimpleSpanProcessor,
 )
+from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 
 def configure_tracing(
-    service_name: str, environment: str, cloud_trace_enabled: bool = False
+    service_name: str,
+    environment: str,
+    cloud_trace_enabled: bool = False,
+    sample_ratio: float = 0.1,
 ) -> None:
+    # 10% sampling stays well under Cloud Trace's 2.5M spans/month free tier
+    # even at 10x current traffic. Set TRACE_SAMPLE_RATIO=1.0 in dev for full traces.
     resource = Resource.create(
         {
             "service.name": service_name,
             "deployment.environment": environment,
         }
     )
-    provider = TracerProvider(resource=resource)
+    provider = TracerProvider(resource=resource, sampler=TraceIdRatioBased(sample_ratio))
 
     if cloud_trace_enabled:
         from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
