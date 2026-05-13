@@ -80,5 +80,6 @@ variable "cloudflare_zone_id" {
 
 variable "owner_email" {
   type        = string
-  description = "Email address that receives alert notifications."
+  default     = ""
+  description = "Email address that receives alert notifications. Empty when running tofu apply in CI (deploy workflow only targets Cloud Run resources, not the email notification channel). Set in terraform.tfvars locally."
 }
