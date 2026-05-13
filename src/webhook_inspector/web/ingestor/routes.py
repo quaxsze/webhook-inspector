@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+import asyncio
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from webhook_inspector.application.use_cases.capture_request import (
     CaptureRequest,
@@ -20,7 +22,7 @@ async def capture(
     request: Request,
     use_case: CaptureRequest = Depends(get_capture_request),  # noqa: B008
     settings: Settings = Depends(get_settings),  # noqa: B008
-) -> dict[str, bool]:
+) -> Response:
     content_length = request.headers.get("content-length")
     if content_length and int(content_length) > settings.max_body_bytes:
         raise HTTPException(status_code=413, detail="payload too large")
@@ -30,7 +32,7 @@ async def capture(
         raise HTTPException(status_code=413, detail="payload too large")
 
     try:
-        await use_case.execute(
+        _captured, endpoint = await use_case.execute(
             token=token,
             method=request.method,
             path=f"/h/{token}{rest}",
@@ -42,4 +44,11 @@ async def capture(
     except EndpointNotFoundError as e:
         raise HTTPException(status_code=404, detail="endpoint not found") from e
 
-    return {"ok": True}
+    if endpoint.response_delay_ms > 0:
+        await asyncio.sleep(endpoint.response_delay_ms / 1000)
+
+    return Response(
+        content=endpoint.response_body,
+        status_code=endpoint.response_status_code,
+        headers=endpoint.response_headers or None,
+    )

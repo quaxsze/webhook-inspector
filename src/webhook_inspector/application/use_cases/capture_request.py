@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 
 from webhook_inspector.domain.entities.captured_request import CapturedRequest
+from webhook_inspector.domain.entities.endpoint import Endpoint
 from webhook_inspector.domain.ports.blob_storage import BlobStorage
 from webhook_inspector.domain.ports.endpoint_repository import EndpointRepository
 from webhook_inspector.domain.ports.notifier import Notifier
@@ -31,7 +32,7 @@ class CaptureRequest:
         headers: dict[str, str],
         body: bytes,
         source_ip: str,
-    ) -> CapturedRequest:
+    ) -> tuple[CapturedRequest, Endpoint]:
         endpoint = await self.endpoint_repo.find_by_token(token)
         if endpoint is None:
             raise EndpointNotFoundError(token)
@@ -71,4 +72,4 @@ class CaptureRequest:
         await self.endpoint_repo.increment_request_count(endpoint.id)
         await self.notifier.publish_new_request(endpoint.id, captured.id)
 
-        return captured
+        return captured, endpoint

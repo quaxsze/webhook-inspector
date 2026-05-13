@@ -80,3 +80,70 @@ async def test_capture_rejects_oversized_body(monkeypatch, database_url, engine,
     ) as c:
         resp = await c.post(f"/h/{token}", content=b"x" * 2048)
         assert resp.status_code == 413
+
+
+async def test_ingestor_returns_custom_status_body_headers(
+    monkeypatch, database_url, engine, tmp_path
+):
+    monkeypatch.setenv("DATABASE_URL", database_url.replace("+psycopg_async", "+psycopg"))
+    monkeypatch.setenv("BLOB_STORAGE_PATH", str(tmp_path))
+    from webhook_inspector.web.app import deps as app_deps
+    from webhook_inspector.web.ingestor import deps as ing_deps
+
+    for m in (app_deps, ing_deps):
+        m.get_settings.cache_clear()
+        m._engine.cache_clear()
+        m._session_factory.cache_clear()
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app_service), base_url="http://test"
+    ) as c:
+        resp = await c.post(
+            "/api/endpoints",
+            json={
+                "response": {
+                    "status_code": 418,
+                    "body": '{"teapot":true}',
+                    "headers": {"X-Custom": "yes"},
+                    "delay_ms": 0,
+                }
+            },
+        )
+        token = resp.json()["token"]
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=ingestor_service), base_url="http://hook"
+    ) as c:
+        resp = await c.post(f"/h/{token}", json={"hello": "world"})
+        assert resp.status_code == 418
+        assert resp.json() == {"teapot": True}
+        assert resp.headers.get("x-custom") == "yes"
+
+
+async def test_ingestor_applies_delay(monkeypatch, database_url, engine, tmp_path):
+    import time
+
+    monkeypatch.setenv("DATABASE_URL", database_url.replace("+psycopg_async", "+psycopg"))
+    monkeypatch.setenv("BLOB_STORAGE_PATH", str(tmp_path))
+    from webhook_inspector.web.app import deps as app_deps
+    from webhook_inspector.web.ingestor import deps as ing_deps
+
+    for m in (app_deps, ing_deps):
+        m.get_settings.cache_clear()
+        m._engine.cache_clear()
+        m._session_factory.cache_clear()
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app_service), base_url="http://test"
+    ) as c:
+        resp = await c.post("/api/endpoints", json={"response": {"delay_ms": 200}})
+        token = resp.json()["token"]
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=ingestor_service), base_url="http://hook"
+    ) as c:
+        start = time.monotonic()
+        resp = await c.post(f"/h/{token}", content=b"")
+        elapsed = time.monotonic() - start
+        assert resp.status_code == 200
+        assert elapsed >= 0.2  # at least 200ms

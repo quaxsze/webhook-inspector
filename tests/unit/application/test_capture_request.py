@@ -93,7 +93,7 @@ async def test_capture_small_body_inline():
     notifier = FakeNotifier()
     uc = CaptureRequest(erepo, rrepo, blob, notifier, inline_threshold=8192)
 
-    saved = await uc.execute(
+    captured, _endpoint = await uc.execute(
         token="abc",
         method="POST",
         path="/h/abc",
@@ -108,7 +108,7 @@ async def test_capture_small_body_inline():
     assert rrepo.saved[0].blob_key is None
     assert blob.puts == {}
     assert erepo.increments == [ep.id]
-    assert notifier.published == [(ep.id, saved.id)]
+    assert notifier.published == [(ep.id, captured.id)]
 
 
 async def test_capture_large_body_uploads_blob():
@@ -120,7 +120,7 @@ async def test_capture_large_body_uploads_blob():
     uc = CaptureRequest(erepo, rrepo, blob, notifier, inline_threshold=8192)
 
     big = b"x" * 10000
-    saved = await uc.execute(
+    captured, _endpoint = await uc.execute(
         token="abc",
         method="POST",
         path="/h/abc",
@@ -130,8 +130,8 @@ async def test_capture_large_body_uploads_blob():
         source_ip="192.0.2.1",
     )
 
-    assert saved.blob_key is not None
-    assert blob.puts[saved.blob_key] == big
+    assert captured.blob_key is not None
+    assert blob.puts[captured.blob_key] == big
 
 
 async def test_capture_falls_back_when_blob_storage_fails():
@@ -143,7 +143,7 @@ async def test_capture_falls_back_when_blob_storage_fails():
     uc = CaptureRequest(erepo, rrepo, blob, notifier, inline_threshold=8192)
 
     big = b"x" * 10000
-    saved = await uc.execute(
+    captured, _endpoint = await uc.execute(
         token="abc",
         method="POST",
         path="/h/abc",
@@ -155,8 +155,8 @@ async def test_capture_falls_back_when_blob_storage_fails():
 
     # Metadata persisted even though blob failed
     assert len(rrepo.saved) == 1
-    assert saved.blob_key is None  # downgraded
-    assert saved.body_size == 10000
+    assert captured.blob_key is None  # downgraded
+    assert captured.body_size == 10000
 
 
 async def test_capture_unknown_token_raises():
@@ -186,7 +186,7 @@ async def test_capture_uppercases_method():
     notifier = FakeNotifier()
     uc = CaptureRequest(erepo, rrepo, blob, notifier, inline_threshold=8192)
 
-    saved = await uc.execute(
+    captured, _endpoint = await uc.execute(
         token="abc",
         method="post",
         path="/h/abc",
@@ -196,4 +196,4 @@ async def test_capture_uppercases_method():
         source_ip="192.0.2.1",
     )
 
-    assert saved.method == "POST"
+    assert captured.method == "POST"
