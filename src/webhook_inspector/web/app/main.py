@@ -80,8 +80,8 @@ async def _active_endpoints_gauge_loop() -> None:
             async with factory() as s:
                 repo = PostgresEndpointRepository(s)
                 last_value["v"] = await repo.count_active()
-        except Exception:
-            pass  # quiet failure; gauge stays at previous value
+        except Exception:  # noqa: BLE001 — best-effort gauge: any DB/network error must not crash the background loop
+            pass  # gauge stays at previous value
         await asyncio.sleep(60)
 
 
