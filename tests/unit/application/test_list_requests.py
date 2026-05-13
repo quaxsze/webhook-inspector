@@ -40,8 +40,15 @@ class FakeRequestRepo(RequestRepository):
     async def find_by_id(self, i):
         return next((r for r in self.items if r.id == i), None)
 
-    async def list_by_endpoint(self, endpoint_id, limit=50, before_id=None):
+    async def list_by_endpoint(self, endpoint_id, limit=50, before_id=None, q=None):
         return [r for r in self.items if r.endpoint_id == endpoint_id][:limit]
+
+    async def stream_for_export(self, endpoint_id, max_count):
+        for r in [x for x in self.items if x.endpoint_id == endpoint_id][:max_count]:
+            yield r
+
+    async def count_by_endpoint(self, endpoint_id):
+        return len([r for r in self.items if r.endpoint_id == endpoint_id])
 
 
 def _ep() -> Endpoint:
