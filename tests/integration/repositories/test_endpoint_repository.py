@@ -1,7 +1,10 @@
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+import pytest
+
 from webhook_inspector.domain.entities.endpoint import Endpoint
+from webhook_inspector.domain.exceptions import SlugAlreadyTakenError
 from webhook_inspector.infrastructure.repositories.endpoint_repository import (
     PostgresEndpointRepository,
 )
@@ -95,6 +98,18 @@ async def test_count_active_returns_count_of_unexpired_endpoints(session):
 
     count = await repo.count_active()
     assert count >= 1  # fresh counts; stale doesn't
+
+
+async def test_save_raises_slug_already_taken_on_duplicate_token(session):
+    repo = PostgresEndpointRepository(session)
+    first = Endpoint.create(token="duplicate-token", ttl_days=7)
+    second = Endpoint.create(token="duplicate-token", ttl_days=7)
+
+    await repo.save(first)
+    await session.commit()
+
+    with pytest.raises(SlugAlreadyTakenError):
+        await repo.save(second)
 
 
 async def test_delete_expired_removes_only_expired(session):

@@ -129,14 +129,15 @@ async def test_rejects_reserved_slug():
 
 class _ConflictingRepo(FakeEndpointRepo):
     async def save(self, endpoint):
-        from sqlalchemy.exc import IntegrityError
-
-        raise IntegrityError("dup", params=None, orig=Exception("UNIQUE"))
+        raise SlugAlreadyTakenError(f"endpoint with token '{endpoint.token}' already exists")
 
 
-async def test_translates_integrity_error_to_slug_already_taken():
+async def test_propagates_slug_already_taken_from_repo():
     repo = _ConflictingRepo()
-    use_case = CreateEndpoint(repo=repo, ttl_days=7, metrics=FakeMetricsCollector())
+    metrics = FakeMetricsCollector()
+    use_case = CreateEndpoint(repo=repo, ttl_days=7, metrics=metrics)
 
     with pytest.raises(SlugAlreadyTakenError):
         await use_case.execute(slug="foo")
+
+    assert metrics.endpoints_created_count == 0

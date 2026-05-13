@@ -1,7 +1,5 @@
 from dataclasses import dataclass
 
-from sqlalchemy.exc import IntegrityError
-
 from webhook_inspector.application.services.slug_validator import validate_slug
 from webhook_inspector.domain.entities.endpoint import (
     DEFAULT_RESPONSE_BODY,
@@ -9,7 +7,6 @@ from webhook_inspector.domain.entities.endpoint import (
     DEFAULT_RESPONSE_STATUS_CODE,
     Endpoint,
 )
-from webhook_inspector.domain.exceptions import SlugAlreadyTakenError
 from webhook_inspector.domain.ports.endpoint_repository import EndpointRepository
 from webhook_inspector.domain.ports.metrics_collector import MetricsCollector
 from webhook_inspector.domain.services.token_generator import generate_token
@@ -44,11 +41,6 @@ class CreateEndpoint:
             response_headers=response_headers,
             response_delay_ms=response_delay_ms,
         )
-        try:
-            await self.repo.save(endpoint)
-        except IntegrityError as e:
-            if slug is not None:
-                raise SlugAlreadyTakenError(f"slug '{slug}' is already taken") from e
-            raise
+        await self.repo.save(endpoint)
         self.metrics.endpoint_created()
         return endpoint
