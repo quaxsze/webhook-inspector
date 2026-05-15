@@ -1,0 +1,31 @@
+name: cleaner
+
+on:
+  schedule:
+    - cron: "0 3 * * *"  # daily at 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  run-cleaner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      # `fly machine run` signature is: fly machine run [flags] <image> [command...]
+      # — image is the first positional, command + args follow it. The `--`
+      # separator stops flyctl flag parsing so `-m` is forwarded to python.
+      # (https://fly.io/docs/flyctl/machine-run/)
+      - name: Run cleaner as an ephemeral machine
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          flyctl machine run \
+            --app webhook-inspector-web \
+            --rm \
+            --region cdg \
+            registry.fly.io/webhook-inspector-web:latest \
+            -- python -m webhook_inspector.jobs.cleaner
