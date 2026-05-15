@@ -1,0 +1,419 @@
+# Phase -1 — Brand & docs consistency Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax for tracking. Plus ops-heavy que le plan Phase 0 — beaucoup de tâches sont à exécuter manuellement par le maintainer (achat domaine, création comptes), pas par un subagent.
+
+**Goal:** Aligner toute la surface publique du repo (URLs, branding, langue, archi diagram) sur `hooktrace.io` et l'architecture Fly.io actuelle, **avant** de démarrer Phase 0 — sinon les interviewés en Phase 1 (customer discovery) tombent sur des incohérences (Cloud Run dans le README, `lang="fr"`, `odessa-inspect.org` partout).
+
+**Architecture:**
+- 8 tâches séquentielles, ~1 semaine total
+- 4 tâches "ops" (manuelles, hors subagent) : achat domaine + comptes + Fly certs + DNS
+- 4 tâches code/docs : pure search/replace + edits markdown, pas de TDD lourd
+- Aucune migration DB, aucun changement de feature, aucun risque sur la prod actuelle
+
+**Tech Stack:** Markdown + Jinja2 templates + grep/sed pour les rewrites massifs.
+
+**Sources :**
+- `docs/launch/2026-05-15-launch-plan.md` — Phase -1 section + décisions 1, 2, 4 (branding)
+- Règle de substitution app./hook./apex documentée dans le launch plan
+
+---
+
+## Pre-requisites
+
+- [ ] Branche fraîche depuis main : `git checkout -b chore/phase-minus-1-rebrand`
+- [ ] Lire `docs/launch/2026-05-15-launch-plan.md` sections "Décisions à prendre" + "Phase -1"
+
+## Tâches dans l'ordre d'exécution
+
+| # | Tâche | Type | Effort | Bloque |
+|---|---|---|---|---|
+| T1 | Achat domaine + réservation usernames | Ops | 30 min | T2-T8 |
+| T2 | Création comptes Honeycomb + GitHub org | Ops | 30 min | Phase 0 PR1 |
+| T3 | Décision repo GitHub (transfer/fork/stay) + exécution | Ops + git | 30 min | T6 (badges README) |
+| T4 | Setup DNS + Fly certs sur hooktrace.io | Ops | 30 min | T7 cutover |
+| T5 | Rebrand massif `odessa-inspect.org` dans code/docs | Code | 2-3 h | T7 |
+| T6 | viewer.html `lang="fr"` → `lang="en"` + i18n strings | Code | 1 h | — |
+| T7 | DNS cutover odessa → hooktrace + couper l'ancien | Ops | 1 h | — |
+| T8 | Verification grep + sanity tests | Code | 30 min | — |
+
+**Total :** ~6-8 heures de travail concentré, étalable sur ~1 semaine en side-project.
+
+---
+
+## T1 — Achat domaine + réservation usernames (Ops)
+
+Tâche manuelle hors subagent. ~30 min total.
+
+- [ ] **Acheter `hooktrace.io`** chez Cloudflare Registrar (https://www.cloudflare.com/products/registrar/) — at-cost ~$45-50/an. Pourquoi Cloudflare : intégration native avec la zone DNS déjà chez eux, pas de markup, gestion WHOIS privacy auto.
+
+- [ ] **Vérifier les usernames disponibles** (snapshot 2026-05-15, à re-confirmer à l'achat) :
+  - Bluesky `hooktrace.bsky.social` : libre
+  - npm `hooktrace` : libre
+  - PyPI `hooktrace` : libre
+  - GitHub `@hooktrace` : **squatté par compte dormant** (créé 2026-01-28, 0 repos). Workaround → org `hooktrace-io` (cf. T2).
+  - X/Twitter `@hooktrace` : à vérifier manuellement (WebFetch bloqué par X)
+
+- [ ] **Réserver les usernames libres** :
+  - Bluesky : créer compte avec handle `hooktrace.bsky.social`
+  - npm : `npm publish` d'un package placeholder (ou réserver via support si pas prêt à publier)
+  - PyPI : créer un projet vide via le formulaire web
+
+- [ ] **(Optionnel) Mastodon** : choisir une instance (`hachyderm.io`, `fosstodon.org` pour devs) et créer `@hooktrace@<instance>`.
+
+- [ ] **Noter dans un password manager** : login Cloudflare Registrar, dates de renouvellement, contacts admin/billing du domaine.
+
+**DoD T1 :** Domaine acheté, 3-4 usernames externe réservés, credentials dans un password manager.
+
+---
+
+## T2 — Création comptes externes (Ops)
+
+Tâche manuelle. ~30 min.
+
+- [ ] **Honeycomb** : créer compte free tier sur https://www.honeycomb.io. Créer un environnement `webhook-inspector-prod`. Copier la **Honeycomb API Key** (depuis Environment settings → API Keys). Noter dans password manager.
+
+- [ ] **GitHub organization `hooktrace-io`** : https://github.com/organizations/plan (Free plan suffit). Cette org sera la cible si tu choisis l'option A de T3 (transfer).
+
+- [ ] **Cloudflare R2** : déjà setup (bucket `wi-blobs-prod` créé en migration Fly). Vérifier qu'il existe encore avec `wrangler r2 bucket list` ou via le dashboard.
+
+- [ ] **GitHub repo secret `FLY_API_TOKEN`** : déjà setup. Si transfert de repo en T3, à reposer dans le nouveau repo.
+
+**DoD T2 :** Honeycomb API key en main, GitHub org `hooktrace-io` créée, R2 bucket vérifié.
+
+---
+
+## T3 — Décision repo GitHub + exécution (Ops + git)
+
+Trois options listées dans le launch plan. **Choisir avant d'exécuter**.
+
+### Option A — Transfer + rename
+
+- [ ] **Transfer** : Settings → Transfer ownership → `hooktrace-io`. Ou CLI :
+  ```bash
+  gh api repos/quaxsze/webhook-inspector/transfer -f new_owner=hooktrace-io
+  ```
+- [ ] **Rename** dans la nouvelle org : `hooktrace-io/webhook-inspector` → `hooktrace-io/hooktrace` via Settings → Rename
+- [ ] **Update local remote** :
+  ```bash
+  git remote set-url origin git@github.com:hooktrace-io/hooktrace.git
+  git remote -v  # verify
+  ```
+- [ ] GitHub redirige automatiquement les anciennes URLs `git clone` mais **pas** les liens README/badges → tous à update en T5.
+
+### Option B — Fork + archive
+
+- [ ] Créer nouveau repo `hooktrace-io/hooktrace` (empty)
+- [ ] Push une copie propre : `git push hooktrace-io main && git push hooktrace-io --tags`
+- [ ] Sur `quaxsze/webhook-inspector` : Settings → Archive this repository → ajouter un README sticky "Moved to https://github.com/hooktrace-io/hooktrace"
+
+### Option C — Stay on quaxsze/
+
+- [ ] Pas d'action. Brand projet sur le domaine + org GitHub `hooktrace-io` pour les éventuels sub-projects (SDK Python, CLI, etc.). Repo reste sur le compte perso. Badges + landing pointent toujours sur `quaxsze/webhook-inspector`.
+
+**DoD T3 :** Décision prise et exécutée. Remote local pointe vers la bonne URL. T5 + T6 connaissent l'URL canonical à utiliser dans les liens.
+
+---
+
+## T4 — DNS + Fly certs sur hooktrace.io (Ops)
+
+À faire **après T1 (domaine acheté)**, **avant T7 (cutover)**.
+
+- [ ] **Importer la zone `hooktrace.io` dans Cloudflare DNS** (auto si Cloudflare Registrar) — vérifier que les NS de Cloudflare sont bien actifs : `dig NS hooktrace.io +short`.
+
+- [ ] **Configurer la Page Rule apex → app** :
+  - Cloudflare → Rules → Page Rules → Create
+  - URL pattern : `hooktrace.io/*`
+  - Setting : **Forwarding URL** → 301 (Permanent Redirect) → `https://app.hooktrace.io/$1`
+  - Save & deploy.
+
+- [ ] **Demander les certs Fly pour les deux subdomains** :
+  ```bash
+  fly certs add app.hooktrace.io --app webhook-inspector-web
+  fly certs add hook.hooktrace.io --app webhook-inspector-ingestor
+  ```
+  Output : Fly imprime soit "Recommended DNS setup: A/AAAA → <IPs>", soit propose un challenge ACME DNS-01.
+
+- [ ] **Créer les 2 CNAMEs Cloudflare** (DNS-only, proxy OFF/gris) :
+  - `app.hooktrace.io` CNAME → `webhook-inspector-web.fly.dev`
+  - `hook.hooktrace.io` CNAME → `webhook-inspector-ingestor.fly.dev`
+
+- [ ] **Si Fly demande un challenge DNS-01** (cf. flow d'init du domaine actuel `odessa-inspect.org`) : créer les 2 CNAMEs `_acme-challenge.app.hooktrace.io` et `_acme-challenge.hook.hooktrace.io` vers les targets `<hash>.flydns.net` indiqués par `fly certs setup app.hooktrace.io`.
+
+- [ ] **Attendre validation Let's Encrypt** (~1-5 min) :
+  ```bash
+  fly certs check app.hooktrace.io --app webhook-inspector-web
+  fly certs check hook.hooktrace.io --app webhook-inspector-ingestor
+  ```
+  Both must report `Status: Issued`.
+
+- [ ] **Smoke test via `--resolve`** (DNS public peut encore servir l'ancien domaine, on force la résolution) :
+  ```bash
+  WEB_IP=66.241.124.237  # cf. fly ips list --app webhook-inspector-web
+  ING_IP=66.241.124.115  # cf. fly ips list --app webhook-inspector-ingestor
+  curl --resolve app.hooktrace.io:443:$WEB_IP -fsS https://app.hooktrace.io/health
+  curl --resolve hook.hooktrace.io:443:$ING_IP -fsS https://hook.hooktrace.io/health
+  ```
+  Both must return `{"status":"healthy",...}`.
+
+**DoD T4 :** Certs Issued, DNS public résout `app.` et `hook.` vers Fly, smoke test 200.
+
+---
+
+## T5 — Rebrand massif `odessa-inspect.org` (Code)
+
+Suit la **règle de substitution app./hook./apex** documentée dans le launch plan. Chaque occurrence est annotée avec sa surface cible. **Aucune URL fonctionnelle ne doit utiliser l'apex `hooktrace.io`** — c'est uniquement pour la prose brand.
+
+### Step 1: README.md (~8 occurrences)
+
+Modifier `README.md` selon le mapping :
+- L118 : `App: https://app.odessa-inspect.org` → `App: https://app.hooktrace.io`
+- L119 : `Ingestor: https://hook.odessa-inspect.org` → `Ingestor: https://hook.hooktrace.io`
+- L132 : `curl -X POST https://app.odessa-inspect.org/api/endpoints` → `app.hooktrace.io`
+- L155 : idem L132
+- L170 : `curl "https://app.odessa-inspect.org/api/endpoints/$TOKEN/requests?q=..."` → `app.hooktrace.io`
+- L185 : `curl -OJ "https://app.odessa-inspect.org/api/endpoints/$TOKEN/export.json"` → `app.hooktrace.io`
+- Redessiner le **diagramme d'architecture en haut du README** (lignes ~16-50 actuellement) pour refléter Fly + R2 + OTLP au lieu de Cloud Run + Cloud SQL + GCS. Le diagramme historique peut rester sous "Roadmap V2.6" — pas en tête de doc.
+- L3-4 (badges CI/Deploy) : si T3 = transfer, les URLs des badges deviennent `hooktrace-io/hooktrace`. Si T3 = stay, inchangé.
+- L236 : lien Security Advisories `github.com/quaxsze/webhook-inspector/security/advisories/new` → idem badges.
+
+### Step 2: landing.html (~6 occurrences brand + URLs)
+
+Modifier `src/webhook_inspector/web/app/templates/landing.html` :
+- L6 : `<title>webhook-inspector — Generate a URL, inspect any webhook live</title>` → `<title>hooktrace — Webhook observability with capture, debug, replay</title>` (placeholder ; copy finale viendra en PR12 du plan Phase 0)
+- L10 : `<meta property="og:title" content="webhook-inspector">` → `content="hooktrace"`
+- L13 : `<meta property="og:url" content="https://app.odessa-inspect.org/">` → `https://app.hooktrace.io/` (URL canonical, pas l'apex qui 301-redirect)
+- L23 : `<h1>webhook-inspector</h1>` → `<h1>hooktrace</h1>`
+- L140 : exemple `https://hook.odessa-inspect.org/h/AbCdEf...` → `https://hook.hooktrace.io/h/AbCdEf...`
+- L144 : idem L140
+- L152 : `<a href="https://github.com/quaxsze/webhook-inspector">open source</a>` → nouveau repo URL selon T3
+
+### Step 3: viewer.html (brand)
+
+Modifier `src/webhook_inspector/web/app/templates/viewer.html` :
+- L5 : `<title>Webhook Inspector — {{ token }}</title>` → `<title>hooktrace — {{ token }}</title>`
+- L14 : `<h1 class="text-xl font-mono">webhook-inspector</h1>` → `<h1>hooktrace</h1>` (vérifier la ligne exacte via `grep -n webhook-inspector src/webhook_inspector/web/app/templates/viewer.html`)
+
+(Le `lang="fr"` → `lang="en"` est traité en T6, séparément.)
+
+### Step 4: Specs historiques (annotation, pas rewrite)
+
+- `docs/specs/2026-05-13-v2-custom-response-and-observability-design.md` :
+  - Ligne 6 : `https://app.odessa-inspect.org` → `https://app.hooktrace.io`
+  - Ligne 139 : `"url": "https://hook.odessa-inspect.org/h/abc..."` → `https://hook.hooktrace.io/h/abc...`
+  - Ligne 259 : `data-url — full ingestor URL (e.g. https://hook.odessa-inspect.org/h/abc...)` → `hook.hooktrace.io`
+  - Ligne 618 : `Custom response works end-to-end on https://app.odessa-inspect.org` → `app.hooktrace.io`
+
+- `docs/specs/2026-05-13-v2.5-ux-product-features-design.md` :
+  - Ligne 33 : `hook.odessa-inspect.org/h/stripe-test` → `hook.hooktrace.io/h/stripe-test` (et l'autre occurrence sur la même ligne)
+
+- `docs/specs/2026-05-11-webhook-inspector-design.md` : ajouter un banner en haut :
+  ```markdown
+  > **Historical note (2026-05-15)** : Ce document décrit le design originel V1.
+  > Voir `docs/launch/2026-05-15-launch-plan.md` pour le pivot V3 observability.
+  > Domaine actuel = `hooktrace.io` (subdomains `app.` + `hook.`), pas `odessa-inspect.org`.
+  ```
+
+### Step 5: CONTRIBUTING.md (vérifier conventions)
+
+Lire `CONTRIBUTING.md` et confirmer que les conventions matchent l'état réel (uv, Fly, pre-commit, etc.). Aucune URL `odessa-inspect.org` n'y devrait être, mais vérifier.
+
+### Step 6: Run lint + smoke test rendering
+
+```bash
+cd /Users/stan/Work/webhook-inspector
+uv run pytest tests/integration/web -q  # render tests should still pass
+```
+
+### Step 7: Commit
+
+```bash
+git add README.md \
+        src/webhook_inspector/web/app/templates/landing.html \
+        src/webhook_inspector/web/app/templates/viewer.html \
+        docs/specs/2026-05-13-v2-custom-response-and-observability-design.md \
+        docs/specs/2026-05-13-v2.5-ux-product-features-design.md \
+        docs/specs/2026-05-11-webhook-inspector-design.md \
+        CONTRIBUTING.md
+git commit -m "chore(brand): rebrand odessa-inspect.org → hooktrace.io with subdomain mapping"
+```
+
+**DoD T5 :** Toutes les URLs `odessa-inspect.org` remplacées par le bon subdomain (`app.` ou `hook.`) selon la surface. Specs historiques annotées. Tests intégration web verts.
+
+---
+
+## T6 — viewer.html i18n (Code)
+
+Tâche petite mais distincte de T5 pour clarté du diff.
+
+### Step 1: Identify French strings in viewer.html
+
+```bash
+cd /Users/stan/Work/webhook-inspector
+grep -n -E "à |de |le |la |les |des |du |pour |dans |avec |sur " src/webhook_inspector/web/app/templates/viewer.html
+```
+
+Liste les ~3-5 strings en français à traduire.
+
+### Step 2: Apply changes
+
+Modifier `src/webhook_inspector/web/app/templates/viewer.html` :
+- L2 : `<html lang="fr">` → `<html lang="en">`
+- Traduire chaque string identifiée en step 1 (typiquement : tooltip "Copier", label "Réponse", etc. — adapter selon le contenu réel)
+
+### Step 3: Render check
+
+```bash
+cd /Users/stan/Work/webhook-inspector
+uv run pytest tests/integration/web/test_viewer_render.py -v
+```
+
+### Step 4: Commit
+
+```bash
+git add src/webhook_inspector/web/app/templates/viewer.html
+git commit -m "chore(viewer): switch lang to en + translate remaining FR strings"
+```
+
+**DoD T6 :** `lang="en"`, aucun mot français résiduel dans le rendu HTML (grep en step 1 returns nothing meaningful).
+
+---
+
+## T7 — DNS cutover odessa → hooktrace (Ops)
+
+À faire **après T4 (certs Fly en place pour hooktrace.io)** et **après T5 (rebrand) déployé** (sinon les visiteurs sur hooktrace.io voient l'ancien brand). Idéalement le même jour pour minimiser le delta.
+
+### Step 1: Deploy le rebrand sur Fly
+
+Une fois T5 mergé sur main, le workflow `deploy.yml` redéploie automatiquement. Vérifier que les apps Fly servent le nouveau brand :
+
+```bash
+# Force la résolution via les certs hooktrace.io pour anticipation
+curl --resolve app.hooktrace.io:443:66.241.124.237 -fsS https://app.hooktrace.io/ | grep -o "<h1[^>]*>[^<]*</h1>"
+# Expected: <h1>hooktrace</h1>
+```
+
+### Step 2: Capture le snapshot DNS avant flip
+
+```bash
+dig +short CNAME app.odessa-inspect.org
+dig +short CNAME hook.odessa-inspect.org
+# Expected: webhook-inspector-web.fly.dev. / webhook-inspector-ingestor.fly.dev.
+```
+
+### Step 3: Couper `odessa-inspect.org` net
+
+Aucun utilisateur réel = pas de redirect 301 (cf. décision 2 du launch plan).
+
+- [ ] Cloudflare DNS panel → supprimer les CNAMEs `app.odessa-inspect.org` et `hook.odessa-inspect.org`
+- [ ] Cloudflare → supprimer les TXT `_acme-challenge.app.odessa-inspect.org` et `_acme-challenge.hook.odessa-inspect.org` s'il en reste
+- [ ] Fly : `fly certs remove app.odessa-inspect.org --app webhook-inspector-web` et idem pour `hook.`
+- [ ] Laisser `odessa-inspect.org` se renouveler ou expirer à son tour — décision selon coût annuel et risque squatting (un nom de domaine expiré peut être racheté par quiconque).
+
+### Step 4: Sanity check post-cutover
+
+```bash
+# Old domain should not resolve
+dig +short CNAME app.odessa-inspect.org
+# Expected: empty
+
+# New domain serves Fly
+curl -fsS https://app.hooktrace.io/health
+curl -fsS https://hook.hooktrace.io/health
+# Expected: {"status":"healthy",...}
+
+# Apex 301 works
+curl -sI https://hooktrace.io/ | head -3
+# Expected: HTTP/2 301 + location: https://app.hooktrace.io/
+```
+
+**DoD T7 :** DNS public sert hooktrace.io, ancien domaine ne résout plus, apex 301 vers app. (mDNS local peut être stale jusqu'à 5 min — c'est OK).
+
+---
+
+## T8 — Verification + sanity (Code)
+
+### Step 1: Final grep — rien de stale
+
+```bash
+cd /Users/stan/Work/webhook-inspector
+grep -rn "odessa-inspect" . --exclude-dir=infra/terraform-legacy --exclude-dir=.git --exclude-dir=docs/superpowers/plans
+```
+Expected output : aucune ligne. Si hits :
+- Dans `infra/terraform-legacy/` : OK, c'est de l'archive
+- Dans `docs/superpowers/plans/` : OK, ce sont les plans qui décrivent l'historique
+- **Ailleurs** : oubli, retourner à T5 pour fixer.
+
+### Step 2: Final grep — rien en français résiduel
+
+```bash
+cd /Users/stan/Work/webhook-inspector
+grep -rn 'lang="fr"' src/
+```
+Expected : aucun hit.
+
+### Step 3: Render check global
+
+```bash
+cd /Users/stan/Work/webhook-inspector
+uv run pytest tests/integration -q
+```
+Expected : tous verts.
+
+### Step 4: Crawl sanity sur prod
+
+```bash
+# Verifier le contenu brand servi par les 2 apps en prod
+curl -fsS https://app.hooktrace.io/ | grep -o 'hooktrace\|webhook-inspector\|odessa' | sort -u
+# Expected: just "hooktrace"
+
+curl -fsS https://hook.hooktrace.io/health | jq
+# Expected: healthy status, checks include DB + R2
+```
+
+### Step 5: Update launch plan
+
+Modifier `docs/launch/2026-05-15-launch-plan.md` pour marquer Phase -1 comme **✅ DONE** :
+- Ajouter en haut de la section Phase -1 :
+  ```markdown
+  > ✅ **DONE** — exécutée 2026-MM-JJ. Cf. `docs/superpowers/plans/2026-05-15-phase-minus-1-brand-cleanup.md` pour le détail.
+  ```
+- Commit : `docs(launch): mark Phase -1 as done`
+
+**DoD T8 :** Aucun grep résiduel suspect, tests verts, prod sert le bon brand sur les bons subdomains, launch plan mis à jour.
+
+---
+
+## Self-review checklist
+
+### Coverage vs launch plan Phase -1
+
+- ✅ Achat domaine + comptes (T1, T2)
+- ✅ Décision GitHub repo (T3)
+- ✅ DNS + Fly certs (T4, T7)
+- ✅ Rebrand massif files (T5)
+- ✅ viewer.html i18n (T6)
+- ✅ Verification final (T8)
+
+### Placeholder scan
+
+- T3 a 3 options avec branches d'exécution distinctes — pas un placeholder, c'est une vraie décision à prendre une fois.
+- T1 demande de vérifier la dispo X/Twitter `@hooktrace` manuellement — pas un placeholder, c'est une limitation tooling (WebFetch bloqué par X).
+
+### Risques
+
+| Risque | Mitigation |
+|---|---|
+| `hooktrace.io` racheté entre maintenant et T1 | Acheter dans les 24h après lecture du plan |
+| Cert Let's Encrypt qui traîne (T4) | Vérifier `fly certs check` à 5 min puis à 15 min ; si toujours pending → re-créer les CNAMEs `_acme-challenge.*` |
+| Tests integration web cassés par les nouveaux brand strings | T5 step 6 puis T8 step 3 attrappent ; si fail → grep `webhook-inspector` dans les tests + adapter snapshot |
+| odessa-inspect.org expiré racheté par squatter post-coupure | Renouveler 1 an défensif avant de couper, ou accepter — pas de users à protéger |
+
+---
+
+## Notes finales
+
+- **Ordre rigide** : T1 → T2 → T3 → T4 (en parallèle T5+T6) → T7 → T8. T4 dépend de T1 (domaine). T7 dépend de T4 + T5 (sinon visiteurs voient stale).
+- **T1 + T2 sont les seules tâches "ouvrir un navigateur"** ; toutes les autres sont CLI/code.
+- **Phase 0 PR1 ne démarre qu'après T8 done** — sinon `SECRETS_ENCRYPTION_KEY` (T2) manque, certs hooktrace pas en place, etc.
+- **Side-project rythme** : 1 semaine si étalé sur soirées + un week-end. Full focus : 1-2 jours.
+- **Aucune migration DB, aucun risque sur la prod actuelle** — Phase -1 est strictement additive jusqu'à T7. Si tout est cassé en T7, rollback DNS = `dig +short CNAME app.odessa-inspect.org` voir si Cloudflare a encore un cache, sinon recréer les CNAMEs sur odessa, certs Fly y sont encore valides.
