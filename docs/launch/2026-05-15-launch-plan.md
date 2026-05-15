@@ -96,22 +96,32 @@ L'écart entre l'état actuel et le pitch V3 est **bien plus large que 60-80h**.
 
 À acter **dans la première semaine de Phase 0** :
 
-### 1. Choix du domaine
+### 1. Choix du domaine — ✅ DÉCIDÉ : `hooktrace.io`
 
-Critères : <12 caractères, prononçable, contient `hook`/`webhook` ou un signal observability, username dispo sur GitHub/Twitter/Bluesky, TLD `.dev` > `.io` > `.sh`.
+Disponibilité vérifiée le 2026-05-15 :
+- Domaine `.io` : libre (WHOIS "Domain not found")
+- Bluesky `hooktrace.bsky.social` : libre
+- npm `hooktrace`, PyPI `hooktrace` : libres
+- GitHub @hooktrace : **squatté par un compte dormant** (créé 2026-01-28, 0 repos, 0 followers, no bio). Workaround → utiliser l'**org `hooktrace-io`**. Tenter un reclaim auprès de GitHub Support après janvier 2027 (policy d'inactivité ≥ 12 mois).
+- X/Twitter @hooktrace : à vérifier manuellement (https://x.com/hooktrace)
 
-| Domaine | Pour | Contre |
-|---|---|---|
-| **hooktrace.io** | "trace" signale OTEL/observability fortement, court | `.io` un peu daté |
-| **hookwatch.io** | Signal monitoring/observability, prononçable | "watch" peut évoquer Watch (Apple) ou ngrok |
-| **hookr.dev** | Court, brandable, `.dev` pour dev tool | Pas de signal observability dans le nom |
-| **webhookobservability.dev** | Imbattable SEO long-tail | Trop long pour la tape-à-la-machine |
+**Coût estimé** : ~$45-50/an chez Cloudflare Registrar (at-cost wholesale `.io`). Pricing exact à valider sur https://www.cloudflare.com/products/registrar/.
 
-**Recommandation** : `hooktrace.io` — alignement positioning + SEO long-tail + courte.
+**À acheter immédiatement avant qu'un squatter ne le prenne** :
+- Domaine `hooktrace.io` chez Cloudflare Registrar (intégration native avec la zone DNS déjà chez Cloudflare)
+- Créer GitHub org `hooktrace-io`
+- Réserver Bluesky `hooktrace.bsky.social`
+- Réserver npm `hooktrace`, PyPI `hooktrace`
+- Réserver X/Twitter @hooktrace si dispo
 
 ### 2. Sortie du domaine actuel `odessa-inspect.org`
 
-Domaine actuellement live et serveur Fly attaché aux CNAMEs `app.` et `hook.`. Option recommandée si on prend un nouveau domaine : laisser `odessa-inspect.org` live + 301 redirect au niveau Fly vers le nouveau domaine pendant 6 mois, puis abandon. Pas de migration brutale.
+Domaine actuellement live et serveur Fly attaché aux CNAMEs `app.` et `hook.`. Procédure :
+
+1. Acheter `hooktrace.io`, attacher Fly via `fly certs add app.hooktrace.io --app webhook-inspector-web` et `fly certs add hook.hooktrace.io --app webhook-inspector-ingestor`
+2. Pointer les CNAMEs `app.hooktrace.io` → `webhook-inspector-web.fly.dev` et `hook.hooktrace.io` → `webhook-inspector-ingestor.fly.dev`
+3. Garder `odessa-inspect.org` actif avec **301 redirect** (via Cloudflare Page Rules ou Fly redirect rule) vers `hooktrace.io` pendant 6 mois minimum (rétention 7j × buffer)
+4. Après 6 mois sans trafic significatif sur l'ancien domaine, laisser expirer
 
 > Note "Odessa" : potentiellement problématique géopolitiquement vu le contexte 2022+ (ville d'Ukraine). Argument supplémentaire pour la sortie.
 
@@ -523,7 +533,7 @@ Règle générale qui sous-tend tout ça : **un dev tool bootstrap qui n'a pas d
 - **Co-founder marketing** : décision dans la première semaine de Phase 0. Solo → cap MRR à ~€3-5k, accepter. Avec co-founder → viser €20k+ MRR mais partager 30-50% equity.
 - **Donations / sponsorship** : avant le paid tier (mois 6+), ouvrir un GitHub Sponsors et un OpenCollective. Pas de la monétisation sérieuse mais signal "ce projet vit".
 - **Self-host docker-compose one-liner** : prioritaire dès Phase 0 pour le pitch OSS. Un `docker run hooktrace/hooktrace` qui marche en 30s.
-- **Migration domaine** : `odessa-inspect.org` → nouveau domaine. 301 pendant 6 mois.
+- **Migration domaine** : `odessa-inspect.org` → `hooktrace.io`. 301 pendant 6 mois minimum (cf. décision 2).
 
 ---
 

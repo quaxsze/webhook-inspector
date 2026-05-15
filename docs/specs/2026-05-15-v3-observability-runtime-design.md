@@ -129,7 +129,7 @@ replayed_at  timestamptz
 
 - Target URL bloquée (DNS fail, refused, SSL fail) → store `error_message`, status 0
 - Target URL = localhost / 127.0.0.1 / 10.x / 192.168.x → refuser côté serveur (SSRF protection)
-- Target URL = même domaine que le service (e.g. `*.<our-domain>`) → refuser (anti-amplification SSRF self-pointing)
+- Target URL = `*.hooktrace.io` ou `*.fly.dev` du service → refuser (anti-amplification SSRF self-pointing)
 - Body > 1 MB → tronquer pour le replay (avec warning visible)
 
 ---
@@ -246,7 +246,7 @@ Nouvelle colonne `requests.schema_drift` (jsonb null) : si le request introduit 
 
 #### User story
 
-> En tant que dev qui veut consommer ses webhooks Stripe en prod via mon API, je veux configurer le service comme proxy : capture → forward auto vers mon URL prod avec retry exponential. Si mon API est down, les events s'accumulent en DLQ et je peux les rejouer plus tard.
+> En tant que dev qui veut consommer ses webhooks Stripe en prod via mon API, je veux configurer hooktrace.io comme proxy : capture → forward auto vers mon URL prod avec retry exponential. Si mon API est down, les events s'accumulent en DLQ et je peux les rejouer plus tard.
 
 #### Comportement
 
@@ -291,7 +291,7 @@ Alternative auto-hébergée : Redis container sur une Fly Machine `shared-cpu-1x
 
 #### Free vs Pro
 
-**Pro only.** Forward est le point de conversion principal — il transforme le service d'un debug tool en infra production.
+**Pro only.** Forward est le point de conversion principal — il transforme hooktrace d'un debug tool en infra production.
 
 #### Edge cases
 
@@ -560,7 +560,7 @@ openssl rand -base64 32  # → coller dans `fly secrets set SECRETS_ENCRYPTION_K
 
 Refuser les `target_url` qui :
 - Résolvent vers private ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `127.0.0.0/8`, `169.254.0.0/16`, fc00::/7, fe80::/10, etc.)
-- Domaine = même que le service (anti-amplification self-pointing)
+- Domaine = `*.hooktrace.io` ou `*.fly.dev` du service (anti-amplification self-pointing)
 - Protocole != `https://` ou `http://` (refuse `file://`, `ftp://`)
 
 **DNS rebinding mitigation** : implémentation non-triviale avec `httpx` qui ne supporte pas l'override d'IP nativement. Approche concrète :
