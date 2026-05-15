@@ -26,7 +26,7 @@
 
 V3 doit rendre crédible le pitch **"the free observability layer for webhooks"**. À la fin de V3 un dev doit pouvoir :
 
-1. Capturer un webhook Stripe sur une URL hooktrace.io et **voir immédiatement** si la signature HMAC est valide
+1. Capturer un webhook Stripe sur une URL du domaine principal et **voir immédiatement** si la signature HMAC est valide
 2. **Re-fire** la même requête contre son `localhost:3000` pour débugger
 3. Voir un dashboard par intégration (Stripe = 47 requests, p95=120ms, 2 erreurs signature)
 4. Détecter qu'un nouveau champ `metadata.legacy_id` apparaît dans les payloads
@@ -129,7 +129,7 @@ replayed_at  timestamptz
 
 - Target URL bloquée (DNS fail, refused, SSL fail) → store `error_message`, status 0
 - Target URL = localhost / 127.0.0.1 / 10.x / 192.168.x → refuser côté serveur (SSRF protection)
-- Target URL = `*.hooktrace.io` → refuser (anti-amplification)
+- Target URL = même domaine que le service (e.g. `*.<our-domain>`) → refuser (anti-amplification SSRF self-pointing)
 - Body > 1 MB → tronquer pour le replay (avec warning visible)
 
 ---
@@ -246,7 +246,7 @@ Nouvelle colonne `requests.schema_drift` (jsonb null) : si le request introduit 
 
 #### User story
 
-> En tant que dev qui veut consommer ses webhooks Stripe en prod via mon API, je veux configurer hooktrace.io comme proxy : capture → forward auto vers mon URL prod avec retry exponential. Si mon API est down, les events s'accumulent en DLQ et je peux les rejouer plus tard.
+> En tant que dev qui veut consommer ses webhooks Stripe en prod via mon API, je veux configurer le service comme proxy : capture → forward auto vers mon URL prod avec retry exponential. Si mon API est down, les events s'accumulent en DLQ et je peux les rejouer plus tard.
 
 #### Comportement
 
@@ -291,7 +291,7 @@ Alternative auto-hébergée : Redis container sur une Fly Machine `shared-cpu-1x
 
 #### Free vs Pro
 
-**Pro only.** Forward est le point de conversion principal — il transforme hooktrace d'un debug tool en infra production.
+**Pro only.** Forward est le point de conversion principal — il transforme le service d'un debug tool en infra production.
 
 #### Edge cases
 
@@ -402,11 +402,28 @@ Migrations Alembic à ajouter en V3 (nouvelle 0004).
 
 **Prérequis à vérifier** avant d'écrire la migration : confirmer dans le schéma V2.5 actuel que (1) la colonne `requests.endpoint_id` existe et est NOT NULL, (2) la contrainte `endpoints.id` est bien `uuid PRIMARY KEY`. Si différence, ajuster les FK ci-dessous.
 
-**Interaction avec V2.5 search vector** : la V2.5 a ajouté un index GIN sur `tsvector(method || path || body_preview)`. Pour que la recherche prenne en compte les nouvelles colonnes :
+**Interaction avec V2.5 search vector** : la V2.5 a ajouté `requests.search_vector` comme **colonne `GENERATED ALWAYS AS (...) STORED`** (cf. migration `0003_5058fb3e1c3e_search_vector.py`). L'expression actuelle concatène `method || path || body_preview || headers::text`.
 
-- Ajouter `signature_status` et `detected_integration` à la concat tsvector → permet des queries `?q=invalid signature` ou `?q=stripe`
-- Reconstruire l'index GIN après la migration (CONCURRENTLY pour éviter le lock)
-- Le coût d'écriture du vector reste négligeable (~5-10 µs/row)
+Pour étendre la recherche aux nouvelles colonnes (`signature_status`, `detected_integration`, `detected_event_type`) :
+
+- **PostgreSQL ne permet pas d'ALTER l'expression d'une generated column** → opération en deux temps :
+  ```sql
+  ALTER TABLE requests DROP COLUMN search_vector;
+  ALTER TABLE requests ADD COLUMN search_vector tsvector GENERATED ALWAYS AS (
+    to_tsvector('simple',
+      coalesce(method, '') || ' ' ||
+      coalesce(path, '') || ' ' ||
+      coalesce(body_preview, '') || ' ' ||
+      coalesce(headers::text, '') || ' ' ||
+      coalesce(signature_status, '') || ' ' ||
+      coalesce(detected_integration, '') || ' ' ||
+      coalesce(detected_event_type, '')
+    )
+  ) STORED;
+  ```
+- **Coût : full table rewrite** (Postgres recalcule la generated column pour chaque ligne existante). À 10k rows → ~quelques secondes. À 1M rows → ~minutes (lock ACCESS EXCLUSIVE pendant l'opération sauf si on utilise `pg_repack` / approche zero-downtime — overkill pour V3).
+- L'index GIN doit aussi être recréé après le DROP/ADD (la nouvelle colonne ressort sans index) → `CREATE INDEX CONCURRENTLY IF NOT EXISTS requests_search_idx ON requests USING GIN (search_vector);`
+- **Recommandation** : faire le DROP/ADD pendant une maintenance window courte (downtime ~30s à <1M rows). Pre-prod : tester sur un dump de la prod-like.
 
 Migrations :
 
@@ -529,16 +546,21 @@ DELETE /api/forwards/{id}
 
 ### Chiffrement des secrets
 
-- Master key dans Fly secret `SECRETS_ENCRYPTION_KEY` (32 bytes random)
+- Master key dans Fly secret `SECRETS_ENCRYPTION_KEY` (32 bytes random base64). À poser sur web + ingestor + worker apps **avant** la première migration V3 qui crée les colonnes `*_secret_encrypted`. À ajouter dans `config.py` comme `Settings.secrets_encryption_key: str` (sans default — fail-fast au boot si absent).
 - AES-GCM avec nonce unique par secret → stocké en `bytea` (nonce + ciphertext + tag)
-- Lib : `cryptography` (Python, déjà transitive dep probable)
-- Rotation : prévoir un mécanisme `SECRETS_ENCRYPTION_KEY_PREVIOUS` pour migration
+- Lib : `cryptography` (Python — pas transitive dep aujourd'hui, à ajouter via `uv add cryptography` lors du sprint F1)
+- Rotation : prévoir un mécanisme `SECRETS_ENCRYPTION_KEY_PREVIOUS` pour migration (tente decrypt avec current key, fallback previous, re-encrypt avec current). Implémentable en V3.5, pas bloquant V3.
+
+**Génération de la clé** :
+```bash
+openssl rand -base64 32  # → coller dans `fly secrets set SECRETS_ENCRYPTION_KEY=...`
+```
 
 ### SSRF protection (replay + forward)
 
 Refuser les `target_url` qui :
 - Résolvent vers private ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `127.0.0.0/8`, `169.254.0.0/16`, fc00::/7, fe80::/10, etc.)
-- Domaine = `*.hooktrace.io` (anti-amplification)
+- Domaine = même que le service (anti-amplification self-pointing)
 - Protocole != `https://` ou `http://` (refuse `file://`, `ftp://`)
 
 **DNS rebinding mitigation** : implémentation non-triviale avec `httpx` qui ne supporte pas l'override d'IP nativement. Approche concrète :
