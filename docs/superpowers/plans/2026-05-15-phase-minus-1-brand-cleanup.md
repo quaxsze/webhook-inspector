@@ -217,6 +217,41 @@ Modifier `src/webhook_inspector/web/app/templates/viewer.html` :
 
 Lire `CONTRIBUTING.md` et confirmer que les conventions matchent l'état réel (uv, Fly, pre-commit, etc.). Aucune URL `odessa-inspect.org` n'y devrait être, mais vérifier.
 
+### Step 5b: CLAUDE.md (domain section)
+
+Modifier `CLAUDE.md` :
+- Ligne 48 : `Production domain: odessa-inspect.org` → `Production domain: hooktrace.io`
+- Ligne 49 : remplacer `app.odessa-inspect.org` → `app.hooktrace.io` et `hook.odessa-inspect.org` → `hook.hooktrace.io` dans la description des deux CNAMEs
+
+### Step 5c: SECURITY.md (3 corrections critiques)
+
+Modifier `SECURITY.md` — c'est la page sécurité publique du repo, elle doit refléter l'état Phase 0 :
+- Ligne ~25 (out-of-scope) : `app.odessa-inspect.org` → `app.hooktrace.io`
+- Ligne ~26 : `Issues already documented in the roadmap as known gaps (rate limiting, WAF — planned for V4)` → réécrire en `Issues already addressed by the launch hardening (rate limiting + Cloudflare WAF in place since V3 public launch)` — le rate limit et WAF ne sont plus "planned for V4", ils sont prérequis Phase 0
+- Lien GitHub Security Advisories : adapter selon décision T3 (transfer vers `hooktrace-io/hooktrace` ou rester sur `quaxsze/webhook-inspector`)
+
+### Step 5d: .github files
+
+- **`.github/workflows/deploy.yml`** : lignes 31-32 (smoke test URLs)
+  - `APP_URL="https://app.odessa-inspect.org"` → `https://app.hooktrace.io`
+  - `INGESTOR_URL="https://hook.odessa-inspect.org"` → `https://hook.hooktrace.io`
+- **`.github/ISSUE_TEMPLATE/bug.yml`** : ligne ~51
+  - `Live instance (app.odessa-inspect.org)` → `Live instance (app.hooktrace.io)`
+
+### Step 5e: README.md roadmap (V3 + V4 rows)
+
+Le launch plan a tranché : Forward Pro = 1 URL (multi-target = Team), et rate limit + WAF sont en Phase 0 prérequis (pas V4). Le README roadmap doit refléter ça sinon le messaging produit reste contradictoire :
+
+Modifier `README.md` lignes 226-227 :
+- **V3 row** :
+  - Avant : `Forward webhook to target(s) — URL + worker + dead-letter queue + exponential retry + idempotency keys`
+  - Après : `Observability pivot — HMAC validation (9 services) + per-integration view + schema drift + replay + OTEL timeline + forward to 1 target URL (Pro) with retry + DLQ`
+- **V4 row** :
+  - Avant : `Rate limiting + Cloudflare WAF custom rules + Memorystore Redis (distributed counters)`
+  - Après : `Production hardening — multi-region read replicas + HA Postgres pair + formal SLOs + transform JSONata (Pro) + multi-target fan-out (Team)`
+
+(Rate limit + WAF sont retirés de V4 car ils sont en Phase 0 — sinon le message au lecteur reste "ça arrive plus tard" alors qu'on les annonce comme acquis dans le pitch launch.)
+
 ### Step 6: Run lint + smoke test rendering
 
 ```bash
@@ -332,16 +367,41 @@ curl -sI https://hooktrace.io/ | head -3
 
 ## T8 — Verification + sanity (Code)
 
-### Step 1: Final grep — rien de stale
+### Step 1: Final grep — rien de stale (avec allowlist explicite)
 
 ```bash
 cd /Users/stan/Work/webhook-inspector
-grep -rn "odessa-inspect" . --exclude-dir=infra/terraform-legacy --exclude-dir=.git --exclude-dir=docs/superpowers/plans
+grep -rln "odessa-inspect" . \
+  --exclude-dir=.git \
+  --exclude-dir=.venv \
+  --exclude-dir=__pycache__ \
+  --exclude-dir=infra/terraform-legacy
 ```
-Expected output : aucune ligne. Si hits :
-- Dans `infra/terraform-legacy/` : OK, c'est de l'archive
-- Dans `docs/superpowers/plans/` : OK, ce sont les plans qui décrivent l'historique
-- **Ailleurs** : oubli, retourner à T5 pour fixer.
+
+**Allowlist des hits acceptables** (snapshots historiques qui décrivent l'ancien domaine et n'ont pas à être réécrits) :
+
+- `docs/launch/2026-05-15-launch-plan.md` — décrit l'état actuel `odessa-inspect.org` à migrer
+- `docs/superpowers/plans/2026-05-15-migrate-to-fly-io.md` — plan archive de la migration GCP → Fly
+- `docs/superpowers/plans/2026-05-15-phase-minus-1-brand-cleanup.md` — ce plan documente le rebrand lui-même
+- `docs/plans/2026-05-13-v2-custom-response-and-observability.md` — plan V2 historique (figé)
+- `docs/plans/2026-05-13-v2.5-ux-product-features.md` — plan V2.5 historique (figé)
+- `docs/specs/2026-05-13-v2-custom-response-and-observability-design.md` — spec V2 (si banner historique choisi en T5)
+- `docs/specs/2026-05-13-v2.5-ux-product-features-design.md` — spec V2.5 (idem)
+
+**Tout autre hit = oubli, retourner à T5 ou T5x pour fixer.**
+
+Concrètement, attendu après `grep -rln "odessa-inspect" .` avec les `--exclude-dir` ci-dessus :
+```
+docs/launch/2026-05-15-launch-plan.md
+docs/superpowers/plans/2026-05-15-migrate-to-fly-io.md
+docs/superpowers/plans/2026-05-15-phase-minus-1-brand-cleanup.md
+docs/plans/2026-05-13-v2-custom-response-and-observability.md
+docs/plans/2026-05-13-v2.5-ux-product-features.md
+docs/specs/2026-05-13-v2-custom-response-and-observability-design.md  (optionnel selon décision T5)
+docs/specs/2026-05-13-v2.5-ux-product-features-design.md  (optionnel selon décision T5)
+```
+
+Si SECURITY.md, README.md, CLAUDE.md, landing.html, viewer.html, deploy.yml, bug.yml ou autre fichier de **production** apparaît → fix manqué.
 
 ### Step 2: Final grep — rien en français résiduel
 

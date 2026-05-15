@@ -214,7 +214,38 @@ Mapping ligne par ligne :
 
 - [ ] **CONTRIBUTING.md** : vérifier que les conventions matchent l'état réel (uv, Fly, etc.)
 
-> **Vérification post-rebrand** : lancer `grep -rn "odessa-inspect" .` à la fin doit retourner uniquement les fichiers archivés dans `infra/terraform-legacy/` et les commits historiques git log. Tout autre hit = ligne oubliée.
+- [ ] **CLAUDE.md** : ligne 48 (`Production domain: odessa-inspect.org`) → `hooktrace.io` ; ligne 49 (les deux CNAMEs `app.odessa-inspect.org` / `hook.odessa-inspect.org`) → `app.hooktrace.io` / `hook.hooktrace.io`
+
+- [ ] **SECURITY.md** : trois corrections obligatoires (sinon page sécurité publique reste incohérente avec le launch) :
+  - Ligne ~25 : `app.odessa-inspect.org` → `app.hooktrace.io`
+  - Ligne ~26 : `rate limiting, WAF — planned for V4` → `rate limiting + WAF in place since Phase 0 (V3 launch)` — c'est désormais un prérequis, pas un planned
+  - Le lien GitHub Security Advisories (`github.com/quaxsze/...`) → adapter selon décision repo GitHub (T3 du plan Phase -1)
+
+- [ ] **.github/workflows/deploy.yml** : lignes 31-32 (smoke test URLs) `app.odessa-inspect.org` / `hook.odessa-inspect.org` → `app.hooktrace.io` / `hook.hooktrace.io`
+
+- [ ] **.github/ISSUE_TEMPLATE/bug.yml** : ligne ~51 (`Live instance (app.odessa-inspect.org)`) → `Live instance (app.hooktrace.io)`
+
+- [ ] **README.md roadmap (lignes 226-227)** — actuellement incohérent avec le launch plan :
+  - **V3 row** : "Forward webhook to **target(s)**" → écrire "Forward webhook **to 1 target URL** (Pro tier). Multi-targets + fan-out = Team tier (V5+)." pour matcher la décision launch plan capping Pro à 1 URL.
+  - **V4 row** : "Rate limiting + Cloudflare WAF custom rules + Memorystore Redis" → soit retirer la ligne (déjà en Phase 0 V3), soit la transformer en "V4 — Production hardening : multi-region read replica, HA Postgres pair, formal SLA". Le rate limit/WAF n'a pas sa place en V4 puisque Phase 0 le traite comme prérequis avant exposition publique.
+
+> **Vérification post-rebrand** : à la fin, lancer :
+> ```bash
+> grep -rln "odessa-inspect" . \
+>   --exclude-dir=.git --exclude-dir=.venv --exclude-dir=__pycache__ \
+>   --exclude-dir=infra/terraform-legacy
+> ```
+> Résultat attendu : **uniquement** les fichiers dans cette allowlist (snapshots historiques qui décrivent l'ancien domaine et n'ont pas à être rewrités) :
+>
+> - `docs/launch/2026-05-15-launch-plan.md` (ce document mentionne odessa-inspect comme état actuel à migrer)
+> - `docs/superpowers/plans/2026-05-15-migrate-to-fly-io.md` (plan de la migration GCP → Fly, archive)
+> - `docs/superpowers/plans/2026-05-15-phase-minus-1-brand-cleanup.md` (ce plan documente le rebrand lui-même)
+> - `docs/plans/2026-05-13-v2-custom-response-and-observability.md` (plan V2 historique)
+> - `docs/plans/2026-05-13-v2.5-ux-product-features.md` (plan V2.5 historique)
+> - `docs/specs/2026-05-13-v2-custom-response-and-observability-design.md` (spec V2 — si tu choisis de garder le rewrite L6/139/259/618 au lieu d'un banner historique)
+> - `docs/specs/2026-05-13-v2.5-ux-product-features-design.md` (spec V2.5 — idem L33)
+>
+> Tout autre hit = ligne oubliée, retourne fixer.
 
 ### Checklist — migration identité GitHub
 
