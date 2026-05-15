@@ -5,8 +5,10 @@
 ## Sommaire
 
 - [Positionnement](#positionnement)
+- [État actuel — où on en est vraiment](#état-actuel--où-on-en-est-vraiment)
 - [Décisions à prendre AVANT exécution](#décisions-à-prendre-avant-exécution)
-- [Phase 0 — Pivot produit (2-3 semaines)](#phase-0--pivot-produit-2-3-semaines)
+- [Phase -1 — Brand & docs consistency (1 semaine)](#phase--1--brand--docs-consistency-1-semaine)
+- [Phase 0 — Pivot produit (8-9 semaines)](#phase-0--pivot-produit-8-9-semaines)
 - [Phase 1 — Customer discovery (1 semaine)](#phase-1--customer-discovery-1-semaine)
 - [Phase 2 — Soft launch (2 semaines)](#phase-2--soft-launch-2-semaines)
 - [Phase 3 — Show HN + launch officiel (1 jour + 1 semaine)](#phase-3--show-hn--launch-officiel-1-jour--1-semaine)
@@ -43,6 +45,43 @@ Un screenshot d'une **timeline OTEL "Stripe webhook flow — DB write 12ms, R2 o
 
 ---
 
+## État actuel — où on en est vraiment
+
+Avant de lister les "décisions à prendre", calage de l'état réel du repo au moment de l'écriture (vérifié contre le code, pas contre le souvenir).
+
+### Déjà fait ✅ (ne pas re-décider)
+
+- **Prod déployée sur Fly.io** : `webhook-inspector-web` + `-ingestor` + `-db` en `cdg`. `infra/fly/` versionné. Cf. `docs/superpowers/plans/2026-05-15-migrate-to-fly-io.md`.
+- **Storage blob = Cloudflare R2** (`BLOB_STORAGE_BACKEND=s3`, adapter `s3_blob_storage.py`).
+- **Observabilité OTLP** configurée côté code (`OTLP_ENDPOINT` env var, exporters branchés). Honeycomb pas encore wired en prod (env var pas posée), mais le runtime fallback console fonctionne.
+- **Domaine `odessa-inspect.org`** live, CNAMEs `app.` et `hook.` pointent sur Fly, certs Let's Encrypt OK.
+- **Repo public** sur GitHub (`quaxsze/webhook-inspector`).
+- **Licence MIT** (`LICENSE` à la racine).
+- **CI/CD `flyctl deploy` sur push main** (`.github/workflows/deploy.yml`).
+- **Features V1 + V2 + V2.5** : create endpoint, viewer live (SSE), search tsvector, export JSON, custom response (status/body/headers/delay), vanity slugs.
+
+### Pas encore fait, à acter en Phase 0 🟡
+
+| Composant | État courant | Cible V3 |
+|---|---|---|
+| Rétention | `endpoint_ttl_days = 7` (`config.py`), cleaner purge à 7j | 30 jours pour free, 90j Pro, 1 an Team |
+| Anti-abuse | Juste `max_body_bytes` côté ingestor — pas de rate limit, pas de freeze heuristique, pas de WAF rules | Cloudflare WAF + rate limit Redis + freeze auto |
+| Schéma DB | Tables `endpoints` + `requests` V2.5 uniquement | + `signature_status`, `detected_integration`, `detected_event_type`, `schema_drift`, `trace_summary`, + tables `replays`, `forwards`, `inferred_schemas` |
+| HMAC built-in | Aucun | 9 services (cf. V3 spec) |
+| Replay / Forward / Transform | Aucun | F2, F5, F6 du V3 spec |
+| Per-integration view | Aucun | F3 du V3 spec |
+| Schema inference | Aucun | F4 du V3 spec |
+| OTEL timeline UI | Backend OK, pas de surface dans le viewer | F7 du V3 spec |
+| Branding | `webhook-inspector` partout dans le code | Cible `hooktrace` (cf. décision domaine) |
+| Langue UI | Landing en anglais, viewer `lang="fr"` | 100% anglais |
+| README architecture | Diagramme top encore Cloud Run/Cloud SQL/Cloud Trace | Diagramme Fly + R2 + OTLP |
+
+### Conséquences pour Phase 0
+
+L'écart entre l'état actuel et le pitch V3 est **bien plus large que 60-80h**. La V3 spec chiffre 7 semaines de dev pur + buffer = **8-9 semaines solo full-time**. C'est ce chiffrage qui prime, pas l'estimation initiale optimiste.
+
+---
+
 ## Décisions à prendre AVANT exécution
 
 À acter **dans la première semaine de Phase 0** :
@@ -62,17 +101,30 @@ Critères : <12 caractères, prononçable, contient `hook`/`webhook` ou un signa
 
 ### 2. Sortie du domaine actuel `odessa-inspect.org`
 
-À garder ? À redirect ? À retirer ? "Odessa" peut être problématique géopolitiquement. Recommandation : 301 redirect vers le nouveau domaine pendant 6 mois, puis abandon.
+Domaine actuellement live et serveur Fly attaché aux CNAMEs `app.` et `hook.`. Option recommandée si on prend un nouveau domaine : laisser `odessa-inspect.org` live + 301 redirect au niveau Fly vers le nouveau domaine pendant 6 mois, puis abandon. Pas de migration brutale.
 
-### 3. Langue du repo + landing
+> Note "Odessa" : potentiellement problématique géopolitiquement vu le contexte 2022+ (ville d'Ukraine). Argument supplémentaire pour la sortie.
 
-Choix : **100% anglais**. Le marché viable est international, "EU-only privacy" est un angle plus faible que "observability for everyone". README, CHANGELOG, commits, landing → tout en anglais. Tickets GitHub idem.
+### 3. Langue du repo + landing — décision quasi-acquise mais à finaliser
 
-### 4. Stratégie OSS
+État actuel : repo, README, commits → **déjà en anglais**. Landing template → **en anglais**. **Mais viewer `lang="fr"`** (cf. `web/app/templates/viewer.html:2`). Inconsistance à corriger en Phase -1.
 
-- Repo public dès Phase 0 fin.
-- License : **AGPL-3.0** (pas MIT). Force les hosters concurrents à open-sourcer leurs modifs. C'est ce que fait Plausible (Posthog est MIT + commercial license sur certaines features advanced — modèle alternatif viable mais demande de l'effort juridique en plus). MIT pur serait risqué face à un AWS qui forke.
-- Contributor License Agreement (CLA) géré via cla-assistant.io pour préserver la flexibilité de relicensing futur.
+Décision à figer : **100% anglais** (cible international). Tickets GitHub idem, déjà la norme.
+
+### 4. Stratégie OSS — **changement de licence à considérer séparément**
+
+> ⚠️ Le repo est **déjà publié en MIT** (`LICENSE` à la racine). Ce n'est pas une décision neuve mais une **proposition de changement de licence**. Implications à arbitrer dans un doc dédié (`docs/launch/license-change.md` à créer si tu retiens l'option) :
+> - Tout code mergé avant la bascule reste accessible sous MIT (le passé ne peut pas être révoqué).
+> - Les contributeurs externes qui ont déjà push sous MIT doivent re-accepter sous AGPL → CLA rétroactif difficile.
+> - L'option "MIT + commercial license sur features Pro" (modèle Posthog) reste valable et n'oblige pas à changer la licence du code historique.
+
+Proposition à arbitrer (pas à exécuter sans réflexion séparée) :
+
+- **Option A (status quo)** : rester en MIT. Risque de fork commercial mitigé par le fait que le service-as-a-service est petit, dépend du free tier + brand + DX. Pragma plausible pour un side-project qui devient public.
+- **Option B (AGPL-3.0 going forward)** : nouvelles contributions sous AGPL via CLA. Code historique reste MIT — donc forkers ont toujours une base MIT à exploiter. Bénéfice marginal.
+- **Option C (MIT + commercial features)** : code OSS reste MIT, certaines features (forward, transform, alerts) sous licence commerciale séparée (cf. Posthog). Demande effort juridique mais cohérent.
+
+**Action** : ne PAS bouger la licence en Phase 0. Trancher séparément en mois 6+ quand un signal de PMF apparaît. Avant ça, la question est prématurée.
 
 ### 5. Co-founder marketing ou solo
 
@@ -80,9 +132,26 @@ Acter explicitement avant Phase 2. Sans co-founder distribution, viser un object
 
 ---
 
-## Phase 0 — Pivot produit (2-3 semaines)
+## Phase -1 — Brand & docs consistency (1 semaine)
 
-Objectif : avoir un produit qui **mérite** le pitch "observability layer" avant tout marketing.
+Prérequis **avant** de toucher au produit. La comm interne du repo est aujourd'hui incohérente — l'arch diagram du README parle encore de Cloud Run / Cloud Trace, la landing est en anglais mais le viewer en `lang="fr"`, et le branding hésite entre `webhook-inspector` (code), `odessa-inspect` (domaine actuel), et `hooktrace` (cible). Avant tout marketing externe, on aligne.
+
+### Checklist
+
+- [ ] **README** : redessiner l'architecture diagram pour refléter Fly + R2 + OTLP. Garder la mention historique Cloud Run sous la roadmap V2.6 (déjà fait), pas en haut du doc.
+- [ ] **viewer.html** : passer `lang="fr"` → `lang="en"`, traduire les 3-4 strings statiques restantes
+- [ ] **landing.html** : aligner le H1 sur la cible (`hooktrace` ou autre) une fois le domaine choisi. Avant ça, le laisser à `webhook-inspector` pour ne pas créer de doc cassée transitoire.
+- [ ] **CONTRIBUTING.md** : verifier que les conventions matchent l'état réel (uv, Fly, etc.)
+- [ ] **docs/specs/2026-05-11-webhook-inspector-design.md** : ajouter en haut un banner "design originel — voir aussi docs/launch/ pour le pivot V3"
+- [ ] Status badges README : décommissionner le badge Deploy si il pointe encore sur l'ancien workflow
+
+Pas de feature produit ici, juste du nettoyage. **~1 semaine** ou en parallèle de Phase 0 si tu peux multitasker. Mais commencé AVANT Phase 1 (customer discovery) — sinon les interviewés tombent sur des incohérences.
+
+---
+
+## Phase 0 — Pivot produit (8-9 semaines)
+
+Objectif : avoir un produit qui **mérite** le pitch "observability layer" avant tout marketing. Effort honnête basé sur le V3 spec (`docs/specs/2026-05-15-v3-observability-runtime-design.md`) : **7 semaines de dev pur + 1-2 semaines de buffer review/bug**.
 
 ### Features à livrer (cf. `docs/specs/2026-05-15-v3-observability-runtime-design.md`)
 
@@ -97,23 +166,32 @@ Objectif : avoir un produit qui **mérite** le pitch "observability layer" avant
 
 ### Anti-abuse + scaling minimum
 
-- [ ] Cloudflare WAF activé sur le domaine. **Le plan gratuit limite à 5 custom rules** — suffisant pour démarrer (bot blocking + rate limit IP de base), mais le plan Pro ($20/mo) débloque les rules avancées (managed rulesets OWASP, rate limit avancé) qui deviendront utiles dès qu'on dépasse 10k MAU. À budgéter Phase 4.
-- [ ] Rate limit par IP : 100 req/min/IP en headline
-- [ ] Rate limit par endpoint : 10 000 req/jour pour les nouveaux endpoints non-authentifiés
-- [ ] Détection heuristique "phishing landing" : si un endpoint reçoit > X requests `GET /` (humans qui cliquent) plutôt que `POST /h/...` (webhooks), flag + freeze
-- [ ] Process `abuse@hooktrace.io` documenté + auto-triage des reports
+> État actuel : l'ingestor (`web/ingestor/routes.py`) ne fait qu'un check `max_body_bytes` (413 si payload trop gros). Aucun rate limit, aucune détection abuse, aucune WAF rule. **Tout ce qui suit est à construire**, ne pas le présenter comme acquis.
+
+- [ ] **Cloudflare WAF** activé sur le domaine. Le plan gratuit limite à 5 custom rules — suffisant pour démarrer (bot blocking + rate limit IP de base). Plan Pro ($20/mo) débloque les rules avancées (managed rulesets OWASP) — à budgéter dès qu'on dépasse 10k MAU.
+- [ ] **Rate limit par IP** : 100 req/min/IP via middleware FastAPI + Redis backend. Soft block (429 avec retry-after), pas de ban permanent.
+- [ ] **Rate limit par endpoint** : 1 000 req/heure pour les endpoints non-authentifiés free tier. Soft block.
+- [ ] **Détection heuristique "phishing landing"** : si un endpoint reçoit > 50 requests `GET /` (humans qui cliquent) plutôt que `POST/PUT/PATCH/DELETE` (webhooks) sur une fenêtre 1h, flag pour review humain (pas de freeze auto au début — risque de faux positifs sur des webhooks GET légitimes).
+- [ ] **XSS mitigation viewer** : déjà partiellement en place (`request_fragment.html` sérialise via `|tojson` en attributs `data-*`, pas d'injection inline). Audit explicite à faire pour confirmer aucune route ne render un payload directement. PAS de blocage par Content-Type — ça contredirait la promesse "inspect any webhook".
+- [ ] **Slug denylist** : refuser les vanity slugs qui matchent des marques (`stripe`, `paypal`, `apple`, …) ou des mots offensants. Liste publique + appel à PR pour ajouts.
+- [ ] **Process abuse@** : email forwarding + template auto-réponse + workflow Linear/GitHub Issues pour triage 24h SLA.
+- [ ] **Page `/legal/abuse-report`** : formulaire qui pré-remplit un email à `abuse@`.
 
 ### Refonte communication
 
-- [ ] README riche : screenshot timeline + GIF replay + quick start Docker en 3 commandes
+> Prérequis : Phase -1 (brand cleanup) traitée. Sinon le travail ci-dessous repose sur une base incohérente.
+
+- [ ] README riche : screenshot timeline + GIF replay + quick start Docker en 3 commandes. Diagramme archi à jour (Fly + R2 + OTLP, pas Cloud Run).
 - [ ] Landing page :
-  - Démo live sans signup (`POST /api/endpoints` → URL utilisable immédiatement)
-  - Capture vidéo 30s : "Stripe webhook → timeline → replay → forward"
+  - Démo live sans signup (`POST /api/endpoints` → URL utilisable immédiatement) — DÉJÀ EN PLACE, à étendre avec screenshot timeline + value proposition observability
+  - Capture vidéo 30s : "Stripe webhook → timeline → replay → forward" (à enregistrer après F1+F2+F7)
   - CTA "Try a webhook now" → génère un endpoint éphémère cliquable
   - Lien GitHub avec compteur de stars visible
+  - Mise à jour copie "URLs expire after 7 days" → "URLs expire after 30 days" (cohérence avec la rétention free tier acquise post F1-F7)
 - [ ] Page `/docs` : Markdown statique (Astro recommandé pour SSG fast + bon SEO)
-- [ ] Page `/integrations/{stripe,github,shopify,…}` : 10 pages templatisées avec exemple HMAC + payload de référence
-- [ ] Légal : ToS + Privacy Policy minimaux mais réels (GDPR-compliant car Cloudflare R2 + Fly cdg)
+- [ ] Page `/integrations/{stripe,github,shopify,…}` : 9 pages templatisées avec exemple HMAC + payload de référence + lien doc officielle
+- [ ] Légal : ToS + Privacy Policy minimaux mais réels (GDPR-compliant car Cloudflare R2 + Fly cdg) — revue rapide avocat dev-friendly ~500€ one-shot
+- [ ] **Rétention 30 jours** : changement de `endpoint_ttl_days` de 7 → 30 dans `config.py`, mise à jour du cleaner, communication explicite dans landing + ToS. **C'est une feature à livrer, pas un fait acquis** — aujourd'hui `endpoint_ttl_days = 7`.
 
 ### Architecture scaling minimum
 
@@ -125,7 +203,17 @@ Objectif : avoir un produit qui **mérite** le pitch "observability layer" avant
 
 > Estimation cost total à 100k req/jour : ~$50-70/mo (PG + volume + 3 apps + R2 toujours $0 grâce au free tier + Honeycomb free tier 20M events). **À valider concrètement avec la pricing page Fly à jour avant de figer dans le pitch publique.**
 
-**Investissement temps** : 60-80h de dev + 10h de comm/landing. Réaliste sur 3 semaines solo.
+**Investissement temps réaliste** (basé sur la décomposition V3 spec, pas une estimation au feeling) :
+
+- F1 HMAC + F3 per-integration view + F4 schema inference : 4 sem
+- F2 replay + F7 OTEL timeline : 1.5 sem
+- F5 forward + DLQ + worker app + Redis Upstash : 1.5 sem
+- F6 transform JSONata : 1 sem
+- Anti-abuse + rate limits + WAF rules + denylist : 1 sem
+- Refonte landing + docs/integrations × 9 services : 1 sem
+- **Total : 8-9 semaines solo full-time**, ou ~4 mois en side-project 15h/sem
+
+Si compressé à <6 semaines, soit certaines features tombent (F6 transform peut être repoussé en V3.5), soit la qualité tests/docs souffre.
 
 ---
 
@@ -311,10 +399,9 @@ URLs publiques + zéro auth = paradis pour les abuseurs. **Sans ce bloc, ne pas 
 ### Application-level
 
 - [ ] Rate limit par token : 1 000 req/heure max sur un endpoint non-authentifié (libérable en Pro)
-- [ ] Detection "endpoint comme landing phishing" : ratio GET / (POST+PUT+PATCH) anormal → freeze + email abuse pour review
-- [ ] Bloquer le rendering inline de bodies HTML/JS dans le viewer — toujours afficher en `pre` text + escape
-- [ ] Content-Type allowlist : refuser `text/html`, `application/javascript`, `application/xhtml+xml` en body (refus 400)
-- [ ] Slugs vanity passés au denylist français/anglais des mots offensants/marques (Stripe, Apple, PayPal interdits sauf compte vérifié)
+- [ ] Detection "endpoint comme landing phishing" : ratio GET / (POST+PUT+PATCH) anormal sur 1h → flag pour review humain (pas de freeze auto initial — risque faux positifs sur webhooks GET légitimes)
+- [ ] **Audit XSS du viewer** : confirmer que `request_fragment.html` et les templates Jinja sérialisent tous les body/header user-controlled via `|tojson` (data attributes) plutôt qu'en interpolation inline. Pas de Content-Type blocking : la promesse publique reste "inspect any webhook", restreindre les content-types contredit le produit.
+- [ ] Slugs vanity : denylist marques (`stripe`, `apple`, `paypal`, etc.) et mots offensants français/anglais. Liste publique versionnée + PR welcome.
 
 ### Process abuse
 
@@ -369,6 +456,8 @@ URLs publiques + zéro auth = paradis pour les abuseurs. **Sans ce bloc, ne pas 
 - ✅ OTEL timeline view
 - ⚠️ 1 000 req/heure rate limit per endpoint
 - ⚠️ Pas de forward / pas de transform auto / pas d'alerts
+
+> ⚠️ La promesse "30 jours rétention free" assume que F1-F7 sont livrés ET que `endpoint_ttl_days` est passé de 7 → 30 dans `config.py`. Aujourd'hui (état repo) c'est 7 jours. À acter explicitement comme Phase 0 finale.
 
 ### Pro — €12/mo
 
