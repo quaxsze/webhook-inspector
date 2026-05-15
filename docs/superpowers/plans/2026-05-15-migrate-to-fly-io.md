@@ -9,7 +9,9 @@
 2. Three Fly apps: `webhook-inspector-db` (Postgres on Machine + volume, self-managed via `flyio/postgres-flex`), `webhook-inspector-web` (FastAPI app), `webhook-inspector-ingestor` (FastAPI ingestor). All in `cdg`. Single image strategy preserved: same `Dockerfile`, different `[processes]` or different fly.toml.
 3. Blob storage moves to **Cloudflare R2** (S3-compatible, free egress, single-provider story with Cloudflare DNS). Object storage is the only stateful component besides Postgres.
 4. Cleaner job runs as a **GitHub Actions cron** that calls `fly machine run --rm` with the latest image — no permanent infra needed.
-5. DNS cutover is the only user-visible moment: the **two existing Cloudflare CNAME records** (`app` and `hook`) flip from `ghs.googlehosted.com` to `<app>.fly.dev`, with Cloud Run kept warm 48h for rollback. The apex `odessa-inspect.org` is **not** touched.
+5. DNS cutover flips the two existing Cloudflare CNAMEs (`app` and `hook`) from `ghs.googlehosted.com` to `<app>.fly.dev`. Apex `odessa-inspect.org` untouched. **No production users at this stage** → we keep Cloud Run warm ~30–60 min post-cutover as a safety net (not 48h), then proceed to teardown.
+
+**Threat model note**: this is a personal side-project with no current users. Phase A's code changes are still written as backward-compatible (additive branches) because the cost is near-zero and it makes the cutover trivially safe, but we deliberately skip the "deploy to Cloud Run and validate Cloud Trace first" gate — there's no production traffic worth protecting. The branch `feat/migrate-to-fly` stays open through Phases B–D and merges only after Fly is fully validated end-to-end.
 
 **Tech Stack:** Fly.io Machines (`shared-cpu-1x` 512MB), `flyio/postgres-flex:16` (self-managed PG), Cloudflare R2 (S3-compatible storage), OpenTelemetry OTLP exporter → Honeycomb, Cloudflare DNS-only, GitHub Actions + `flyctl`.
 
@@ -797,33 +799,11 @@ git commit -m "feat(storage): wire S3 backend in factory"
 
 ---
 
-### Task A7: Validate code changes against current production (Cloud Run)
+### Task A7: ~~Validate against Cloud Run~~ — **SKIPPED**
 
-**Files:** none — verification only.
+**Originally:** merge to main → deploy to Cloud Run → verify Cloud Trace still receives spans → cut a separate Phase B branch.
 
-- [ ] **Step 1: Merge Phase A to `main`**
-
-```bash
-git checkout main
-git merge --no-ff feat/migrate-to-fly
-git push origin main
-```
-
-- [ ] **Step 2: Wait for `deploy.yml` to ship to Cloud Run**
-
-Run: `gh run watch` (or check the Actions tab).
-Expected: deploy job green, `Smoke test deployed services` step passing.
-
-- [ ] **Step 3: Verify Cloud Trace still receives spans**
-
-Open Cloud Trace UI in the GCP console, filter on the last 15 min, generate a webhook via the live `/h/<token>` endpoint, confirm a trace appears.
-Expected: traces visible — proves the additive change didn't regress production.
-
-- [ ] **Step 4: Cut a fresh branch for Phase B**
-
-```bash
-git checkout -b feat/migrate-to-fly-infra
-```
+**Now skipped** because there are no production users to protect against regression. Phase A stays on `feat/migrate-to-fly`; Phase B continues on the same branch with no intermediate merge. The branch merges once at the end, after Fly is validated end-to-end (after Phase C).
 
 ---
 
@@ -1425,23 +1405,27 @@ If error rate spikes → **rollback**: in Cloudflare, change the `app` and `hook
 
 ---
 
-### Task C4: 48h observation window
+### Task C4: 30–60 min observation window
 
-**Files:** none — monitoring only.
+**Files:** none — monitoring only. Shortened from 48h because there are no real users to protect.
 
-- [ ] **Step 1: Set a calendar reminder for 48h from cutover**
+- [ ] **Step 1: After 30 min, do a final smoke test**
 
-- [ ] **Step 2: Keep Cloud Run running**
+```bash
+curl -fsS https://app.odessa-inspect.org/health
+curl -fsS https://hook.odessa-inspect.org/health
+TOKEN=$(curl -sX POST https://app.odessa-inspect.org/api/endpoints | jq -r .token)
+curl -fsS -X POST "https://hook.odessa-inspect.org/h/$TOKEN" -d 'post-cutover-smoke'
+```
+Expected: 200s across the board.
 
-Do not run any `tofu destroy` yet. Cloud Run is the rollback target.
+- [ ] **Step 2: Quick sanity checks**
 
-- [ ] **Step 3: Check at +24h and +48h**
-
-- Honeycomb error rate within 2× baseline.
-- `fly status` on all three apps healthy.
+- `fly status --app webhook-inspector-web` / `--app webhook-inspector-ingestor` / `--app webhook-inspector-db` all healthy.
+- Honeycomb shows traces from both `webhook-inspector-app` and `webhook-inspector-ingestor` services in the last 30 min.
 - `fly logs --app webhook-inspector-db` shows no OOM / restart loops.
 
-If everything is stable, proceed to Phase D. If anything is off, rollback DNS and investigate.
+If anything is off → rollback DNS via C3 step 4 procedure. Otherwise → proceed to Phase D immediately (no 48h wait).
 
 ---
 
