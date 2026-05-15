@@ -94,10 +94,14 @@ resource "google_monitoring_alert_policy" "cloudsql_query_latency_p95" {
       duration        = "300s"
       comparison      = "COMPARISON_GT"
       threshold_value = 200000 # microseconds → 200 ms
+      # insights/aggregate/latencies is a CUMULATIVE+DISTRIBUTION metric, so the
+      # percentile aggregation has to be the cross-series reducer (after
+      # ALIGN_DELTA converts the cumulative samples to per-window deltas).
+      # ALIGN_PERCENTILE_* is rejected by the API for CUMULATIVE+DISTRIBUTION.
       aggregations {
         alignment_period     = "60s"
-        per_series_aligner   = "ALIGN_PERCENTILE_95"
-        cross_series_reducer = "REDUCE_MEAN"
+        per_series_aligner   = "ALIGN_DELTA"
+        cross_series_reducer = "REDUCE_PERCENTILE_95"
         group_by_fields      = ["resource.label.database_id"]
       }
     }
