@@ -169,14 +169,20 @@ Pas de feature produit ici, juste du nettoyage. **~1 semaine** ou en parallèle 
 
 ---
 
-## Phase 0 — Pivot produit (8-9 semaines)
+## Phase 0 — Pivot produit (9-10 semaines)
 
-Objectif : avoir un produit qui **mérite** le pitch "observability layer" avant tout marketing. Effort honnête basé sur le V3 spec (`docs/specs/2026-05-15-v3-observability-runtime-design.md`) : **7 semaines de dev pur + 1-2 semaines de buffer review/bug**.
+Objectif : avoir un produit qui **mérite** le pitch "observability layer" avant tout marketing. Effort honnête basé sur le V3 spec (`docs/specs/2026-05-15-v3-observability-runtime-design.md`) :
+
+- **F1-F7 (dev pur features)** : 7 semaines + 1-2 sem de buffer review/bug = 8-9 sem (chiffre du V3 spec)
+- **+ Anti-abuse / rate limits / WAF / denylist** : ~1 sem (pas dans le V3 spec, propre au Phase 0 lancement public)
+- **+ Refonte landing / docs/integrations × 9 services** : ~1 sem
+
+**Total Phase 0 : 9-10 semaines solo full-time**, ou ~4-5 mois en side-project 15h/sem.
 
 ### Features à livrer (cf. `docs/specs/2026-05-15-v3-observability-runtime-design.md`)
 
 - [ ] **Replay** : bouton sur chaque request pour re-fire vers une URL cible
-- [ ] **Forward** : config par endpoint pour relayer toutes les requests vers une (ou N) URL(s) downstream avec retry exponential + DLQ
+- [ ] **Forward** : config par endpoint pour relayer toutes les requests vers **1 URL** downstream avec retry exponential + DLQ. Multi-targets + fan-out repoussés au tier Team (cf. section [Free vs Paid tier](#free-vs-paid-tier)).
 - [ ] **Transform** : règle JSONata par endpoint pour modifier le payload avant forward
 - [ ] **Per-integration view** : grouping auto des requests par source détectée (Stripe, GitHub, Shopify, Twilio, Mailgun, Discord, Slack, PayPal, Zapier, n8n) avec compteurs + p95 latency
 - [ ] **HMAC signature validation built-in** pour les 9 intégrations HMAC (PayPal en V3.5) ci-dessus (config secret par endpoint)
@@ -223,17 +229,21 @@ Objectif : avoir un produit qui **mérite** le pitch "observability layer" avant
 
 > Estimation cost total à 100k req/jour : ~$50-70/mo (PG + volume + 3 apps + R2 toujours $0 grâce au free tier + Honeycomb free tier 20M events). **À valider concrètement avec la pricing page Fly à jour avant de figer dans le pitch publique.**
 
-**Investissement temps réaliste** (basé sur la décomposition V3 spec, pas une estimation au feeling) :
+**Investissement temps réaliste** (basé sur la décomposition V3 spec + extras spécifiques au lancement public) :
 
-- F1 HMAC + F3 per-integration view + F4 schema inference : 4 sem
-- F2 replay + F7 OTEL timeline : 1.5 sem
-- F5 forward + DLQ + worker app + Redis Upstash : 1.5 sem
-- F6 transform JSONata : 1 sem
-- Anti-abuse + rate limits + WAF rules + denylist : 1 sem
-- Refonte landing + docs/integrations × 9 services : 1 sem
-- **Total : 8-9 semaines solo full-time**, ou ~4 mois en side-project 15h/sem
+| Bloc | Durée |
+|---|---|
+| F1 HMAC + F3 per-integration view + F4 schema inference | 4 sem |
+| F2 replay + F7 OTEL timeline | 1.5 sem |
+| F5 forward + DLQ + worker app + Redis Upstash | 1.5 sem |
+| F6 transform JSONata | 1 sem |
+| Anti-abuse + rate limits + WAF rules + denylist | 1 sem |
+| Refonte landing + docs/integrations × 9 services | 1 sem |
+| **Total** | **10 sem dev pur** |
 
-Si compressé à <6 semaines, soit certaines features tombent (F6 transform peut être repoussé en V3.5), soit la qualité tests/docs souffre.
+Avec buffer review/bug réaliste : **9-10 sem solo full-time** (le chiffre haut sert de cible, le bas suppose zéro imprévu). En side-project 15h/sem : ~4-5 mois.
+
+Si compressé à <8 semaines, soit certaines features tombent (F6 transform peut glisser en V3.5, libère 1 sem), soit la qualité tests/docs souffre.
 
 ---
 
