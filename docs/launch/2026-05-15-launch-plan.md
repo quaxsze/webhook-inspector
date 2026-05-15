@@ -8,7 +8,7 @@
 - [État actuel — où on en est vraiment](#état-actuel--où-on-en-est-vraiment)
 - [Décisions à prendre AVANT exécution](#décisions-à-prendre-avant-exécution)
 - [Phase -1 — Brand & docs consistency (1 semaine)](#phase--1--brand--docs-consistency-1-semaine)
-- [Phase 0 — Pivot produit (9-10 semaines)](#phase-0--pivot-produit-9-10-semaines)
+- [Phase 0 — Pivot produit (10-11 semaines)](#phase-0--pivot-produit-10-11-semaines)
 - [Phase 1 — Customer discovery (1 semaine)](#phase-1--customer-discovery-1-semaine)
 - [Phase 2 — Soft launch (2 semaines)](#phase-2--soft-launch-2-semaines)
 - [Phase 3 — Show HN + launch officiel (1 jour + 1 semaine)](#phase-3--show-hn--launch-officiel-1-jour--1-semaine)
@@ -88,7 +88,7 @@ Avant de lister les "décisions à prendre", calage de l'état réel du repo au 
 
 ### Conséquences pour Phase 0
 
-L'écart entre l'état actuel et le pitch V3 est **bien plus large que 60-80h**. La V3 spec chiffre **8-9 semaines solo full-time** pour les features F1-F7 (dev pur + buffer). Phase 0 ajoute ~2 semaines d'extras propres au lancement public (anti-abuse, refonte landing/docs), pour un total **9-10 semaines**. C'est ce chiffrage qui prime, pas l'estimation initiale optimiste.
+L'écart entre l'état actuel et le pitch V3 est **bien plus large que 60-80h**. Chiffrage détaillé en [section Phase 0](#phase-0--pivot-produit-10-11-semaines) — résumé : **~10-11 semaines solo full-time** (V3 features F1-F7 + extras Phase 0 anti-abuse/landing + buffer). C'est ce chiffrage qui prime, pas l'estimation initiale optimiste.
 
 ---
 
@@ -114,15 +114,22 @@ Disponibilité vérifiée le 2026-05-15 :
 - Réserver npm `hooktrace`, PyPI `hooktrace`
 - Réserver X/Twitter @hooktrace si dispo
 
-### 2. Sortie du domaine actuel `odessa-inspect.org`
+### 2. Sortie du domaine actuel `odessa-inspect.org` + topologie subdomains
 
 Domaine actuellement live + CNAMEs `app.` et `hook.` pointent sur Fly. **Aucun utilisateur réel** — donc pas de redirect 301 à mettre en place. Un 301 serait de toute façon mauvais sur l'ingestor (POST/PUT/PATCH webhooks) : beaucoup de providers ne suivent pas le redirect proprement, et un 301 peut réécrire la méthode HTTP côté client.
 
-Procédure simple :
+**Topologie `hooktrace.io`** : l'app web doit vivre sur `app.hooktrace.io` (pas sur l'apex) parce que `web/app/routes.py:71:hook_base_url()` réécrit `://app.` → `://hook.` pour générer les URLs de webhook retournées par l'API. Sans ce préfixe `app.`, les tokens créés via le viewer pointeraient sur le mauvais host.
 
-1. Acheter `hooktrace.io`, attacher Fly via `fly certs add app.hooktrace.io --app webhook-inspector-web` et `fly certs add hook.hooktrace.io --app webhook-inspector-ingestor`
-2. Créer les CNAMEs Cloudflare `app.hooktrace.io` → `webhook-inspector-web.fly.dev` et `hook.hooktrace.io` → `webhook-inspector-ingestor.fly.dev`
-3. **Couper `odessa-inspect.org` net** : retirer les CNAMEs `app.odessa-inspect.org` et `hook.odessa-inspect.org` chez Cloudflare ; révoquer les certs Fly (`fly certs remove app.odessa-inspect.org` etc.). Laisser le domaine expirer à son renouvellement naturel.
+L'apex `hooktrace.io` lui-même sert juste de **301 → `https://app.hooktrace.io/`** (via Cloudflare Page Rule, gratuit). Pas de landing distincte côté apex en V3 — éventuellement un site marketing statique séparé en V4+ si le pitch SEO le demande, mais YAGNI pour le launch.
+
+Procédure complète :
+
+1. Acheter `hooktrace.io` chez Cloudflare Registrar
+2. Configurer Cloudflare Page Rule : `hooktrace.io/*` → 301 `https://app.hooktrace.io/$1`
+3. Attacher Fly : `fly certs add app.hooktrace.io --app webhook-inspector-web` et `fly certs add hook.hooktrace.io --app webhook-inspector-ingestor`
+4. Créer les CNAMEs Cloudflare `app.hooktrace.io` → `webhook-inspector-web.fly.dev` et `hook.hooktrace.io` → `webhook-inspector-ingestor.fly.dev` (proxy OFF, gris)
+5. Smoke test via `curl --resolve` puis via DNS public
+6. **Couper `odessa-inspect.org` net** : retirer les CNAMEs `app.odessa-inspect.org` et `hook.odessa-inspect.org` chez Cloudflare ; révoquer les certs Fly (`fly certs remove app.odessa-inspect.org` etc.). Laisser le domaine expirer à son renouvellement naturel.
 
 > Note "Odessa" : potentiellement problématique géopolitiquement vu le contexte 2022+ (ville d'Ukraine). Argument supplémentaire pour la sortie.
 
@@ -171,7 +178,7 @@ Prérequis **avant** de toucher au produit. La comm interne du repo est aujourd'
 - [ ] **src/webhook_inspector/web/app/templates/landing.html** :
   - Ligne 6 : `<title>webhook-inspector...</title>` → `<title>hooktrace — ...</title>`
   - Ligne 10 : `og:title content="webhook-inspector"` → `hooktrace`
-  - Ligne 13 : `og:url` → `https://hooktrace.io/`
+  - Ligne 13 : `og:url` → `https://app.hooktrace.io/` (URL canonical de l'app — l'apex `hooktrace.io` 301-redirect vers cette URL, cf. décision 2 topologie)
   - Ligne 23 : `<h1>webhook-inspector</h1>` → `<h1>hooktrace</h1>`
   - Lignes 140, 144 : exemples `hook.odessa-inspect.org/h/...` → `hook.hooktrace.io/h/...`
   - Ligne 152 : lien `github.com/quaxsze/webhook-inspector` → nouveau repo si transfert
@@ -202,15 +209,18 @@ Prérequis **avant** de toucher au produit. La comm interne du repo est aujourd'
 
 ---
 
-## Phase 0 — Pivot produit (9-10 semaines)
+## Phase 0 — Pivot produit (10-11 semaines)
 
-Objectif : avoir un produit qui **mérite** le pitch "observability layer" avant tout marketing. Effort honnête basé sur le V3 spec (`docs/specs/2026-05-15-v3-observability-runtime-design.md`) :
+Objectif : avoir un produit qui **mérite** le pitch "observability layer" avant tout marketing. Décomposition détaillée en table plus bas — résumé :
 
-- **F1-F7 (dev pur features)** : 7 semaines + 1-2 sem de buffer review/bug = 8-9 sem (chiffre du V3 spec)
-- **+ Anti-abuse / rate limits / WAF / denylist** : ~1 sem (pas dans le V3 spec, propre au Phase 0 lancement public)
-- **+ Refonte landing / docs/integrations × 9 services** : ~1 sem
+| Composante | Source | Durée |
+|---|---|---|
+| F1-F7 features (dev pur) | V3 spec | 7 sem |
+| Phase 0 extras (anti-abuse + landing) | propre launch | 2 sem |
+| Buffer review/bugs/intégration | réaliste solo | 1-2 sem |
+| **Total Phase 0** | | **10-11 sem solo full-time** |
 
-**Total Phase 0 : 9-10 semaines solo full-time**, ou ~4-5 mois en side-project 15h/sem.
+En side-project 15h/sem ≈ **4-5 mois calendrier**.
 
 ### Features à livrer (cf. `docs/specs/2026-05-15-v3-observability-runtime-design.md`)
 
@@ -262,21 +272,23 @@ Objectif : avoir un produit qui **mérite** le pitch "observability layer" avant
 
 > Estimation cost total à 100k req/jour : ~$50-70/mo (PG + volume + 3 apps + R2 toujours $0 grâce au free tier + Honeycomb free tier 20M events). **À valider concrètement avec la pricing page Fly à jour avant de figer dans le pitch publique.**
 
-**Investissement temps réaliste** (basé sur la décomposition V3 spec + extras spécifiques au lancement public) :
+**Investissement temps réaliste, table de chiffrage détaillée** :
 
-| Bloc | Durée |
-|---|---|
-| F1 HMAC + F3 per-integration view + F4 schema inference | 4 sem |
-| F2 replay + F7 OTEL timeline | 1.5 sem |
-| F5 forward + DLQ + worker app + Redis Upstash | 1.5 sem |
-| F6 transform JSONata | 1 sem |
-| Anti-abuse + rate limits + WAF rules + denylist | 1 sem |
-| Refonte landing + docs/integrations × 9 services | 1 sem |
-| **Total** | **10 sem dev pur** |
+| Bloc | Durée dev pur | Notes |
+|---|---|---|
+| F1 HMAC + F3 per-integration view + F4 schema inference | 4 sem | (1+1+2 sem, F4 schema inference inclut tooling drift) |
+| F2 replay + F7 OTEL timeline | 1.5 sem | (1 + 0.5) |
+| F5 forward + DLQ + worker app + Redis Upstash | 1.5 sem | nouvelle app Fly, Upstash setup |
+| F6 transform JSONata | 1 sem | si garde (cf. note compression ci-dessous) |
+| Anti-abuse + rate limits + WAF rules + denylist | 1 sem | spécifique launch public, pas dans V3 spec |
+| Refonte landing + docs/integrations × 9 services | 1 sem | spécifique launch public |
+| **Sous-total dev pur** | **10 sem** | (8 sem F1-F7 + 2 sem extras Phase 0) |
+| Buffer review/bug/intégration | +1 sem | hypothèse solo full-time réaliste |
+| **Total Phase 0 réaliste** | **~11 sem** | upper bound : 12 sem si imprévus |
 
-Avec buffer review/bug réaliste : **9-10 sem solo full-time** (le chiffre haut sert de cible, le bas suppose zéro imprévu). En side-project 15h/sem : ~4-5 mois.
+Side-project 15h/sem ≈ **4-5 mois calendrier**.
 
-Si compressé à <8 semaines, soit certaines features tombent (F6 transform peut glisser en V3.5, libère 1 sem), soit la qualité tests/docs souffre.
+Si compressé à <9 semaines, soit certaines features tombent (F6 transform peut glisser en V3.5, libère 1 sem), soit la qualité tests/docs souffre.
 
 ---
 
