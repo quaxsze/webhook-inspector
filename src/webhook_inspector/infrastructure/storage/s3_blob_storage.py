@@ -35,28 +35,25 @@ class S3BlobStorage(BlobStorage):
 
     async def put(self, key: str, data: bytes) -> None:
         full_key = self._full_key(key)
-        await asyncio.to_thread(
-            self._client.put_object,
-            Bucket=self._bucket_name,
-            Key=full_key,
-            Body=data,
-        )
+        await asyncio.to_thread(self._upload, full_key, data)
 
     async def get(self, key: str) -> bytes | None:
         full_key = self._full_key(key)
         try:
-            obj = await asyncio.to_thread(
-                self._client.get_object,
-                Bucket=self._bucket_name,
-                Key=full_key,
-            )
+            return await asyncio.to_thread(self._download, full_key)
         except ClientError as e:
             if e.response.get("Error", {}).get("Code") in ("NoSuchKey", "404"):
                 return None
             raise
-        return bytes(obj["Body"].read())
 
     def _full_key(self, key: str) -> str:
         if self._key_prefix:
             return f"{self._key_prefix}/{key}"
         return key
+
+    def _upload(self, key: str, data: bytes) -> None:
+        self._client.put_object(Bucket=self._bucket_name, Key=key, Body=data)
+
+    def _download(self, key: str) -> bytes:
+        obj = self._client.get_object(Bucket=self._bucket_name, Key=key)
+        return bytes(obj["Body"].read())
