@@ -1,4 +1,5 @@
 import asyncio
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
@@ -37,14 +38,13 @@ async def healthz(
 
     try:
         storage = _blob_storage()
-        probe_key = "_healthz_probe"
+        # Unique probe key per invocation: the ingestor SA has
+        # roles/storage.objectCreator (write-only, no overwrite, no read), so
+        # we must always CREATE — never UPDATE — and skip the readback. The
+        # bucket's 7-day lifecycle rule garbage-collects accumulated probes.
+        probe_key = f"_healthz_probe/{uuid.uuid4().hex}"
         await storage.put(probe_key, b"ok")
-        result = await storage.get(probe_key)
-        if result == b"ok":
-            checks["blob_storage"] = "ok"
-        else:
-            checks["blob_storage"] = "error: roundtrip mismatch"
-            overall_ok = False
+        checks["blob_storage"] = "ok"
     except Exception as e:  # noqa: BLE001
         checks["blob_storage"] = f"error: {type(e).__name__}"
         overall_ok = False
