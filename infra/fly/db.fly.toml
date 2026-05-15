@@ -1,0 +1,28 @@
+# Self-managed Postgres on Fly Machines.
+# Image: flyio/postgres-flex (official Fly PG image, tuned for the platform).
+# Backups: snapshots of the pg_data volume (fly volumes snapshots create ...).
+# No HA in this config — single primary. Upgrade by stopping the machine,
+# creating a new one with the next image tag, and restarting.
+app            = "webhook-inspector-db"
+primary_region = "cdg"
+
+[build]
+  image = "flyio/postgres-flex:16"
+
+[env]
+  PRIMARY_REGION = "cdg"
+
+[mounts]
+  source      = "pg_data"
+  destination = "/data"
+
+[[services]]
+  internal_port = 5432
+  protocol      = "tcp"
+
+  [[services.ports]]
+    port = 5432
+
+[[vm]]
+  size   = "shared-cpu-1x"
+  memory = "1gb"
