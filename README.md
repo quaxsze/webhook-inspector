@@ -120,12 +120,9 @@ Live URLs:
 
 Generated webhook URLs (`POST /api/endpoints`) automatically point to the ingestor subdomain. Use as-is in any service that sends webhooks (Stripe, GitHub, Slack...).
 
-Deploys are automatic on push to `main`. See `infra/terraform/README.md` for the deployment pipeline.
+Deploys are automatic on push to `main` via `.github/workflows/deploy.yml` (`flyctl deploy --remote-only` on each service). See `infra/fly/README.md` for the deployment topology.
 
-Trace data is exported to Google Cloud Trace. View traces:
-```
-gcloud trace traces list --limit=10
-```
+Trace data is exported via OTLP/HTTP — point `OTLP_ENDPOINT` at any OTLP backend (Honeycomb, Grafana Cloud, etc.) and traces ship there. Without `OTLP_ENDPOINT`, spans go to stdout and are visible in `fly logs`.
 
 ## Custom response
 
@@ -225,7 +222,8 @@ Response format:
 | V1 | ✅ Live | MVP : 5 endpoints + live viewer + Cloud Run + WIF CI/CD + custom domain + Cloud Trace |
 | V2 | ✅ Live | Custom response (status/body/headers/delay) + copy-as-curl + custom OTEL metrics + Cloud Monitoring dashboards + alerting |
 | V2.5 | ✅ Live | **UX produit** — vanity URL slug + search/filter (Postgres `tsvector` + GIN index) + export captured requests as JSON |
-| V3 | 🟡 Planned | **Forward webhook to target(s)** — URL + Slack + Email (Pub/Sub topic + worker + dead-letter queue + exponential retry + idempotency keys) |
+| V2.6 | ✅ Live | **Migration cloud** — GCP (Cloud Run + Cloud SQL + GCS + Cloud Trace) → Fly.io (Machines + self-managed Postgres + Cloudflare R2) + OTLP traces. See `docs/superpowers/plans/2026-05-15-migrate-to-fly-io.md`. |
+| V3 | 🟡 Planned | **Forward webhook to target(s)** — URL + worker + dead-letter queue + exponential retry + idempotency keys |
 | V4 | 🟡 Planned | Rate limiting + Cloudflare WAF custom rules + Memorystore Redis (distributed counters) |
 | V5 | 🟡 Planned | **Auth + power user** — Google OAuth + claimed URLs + activity log per-account + statistics charts + API tokens + (optional) DNSBL lookup |
 | V6 | 🟡 Planned | Formal SLOs + error budgets + status page publique + first real postmortem |

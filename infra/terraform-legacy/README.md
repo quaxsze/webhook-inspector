@@ -1,6 +1,15 @@
-# Infrastructure — webhook-inspector (Phase B)
+# Terraform legacy (GCP — decommissioned 2026-05-15)
 
-Terraform module deploying webhook-inspector to GCP in a single `dev` env.
+> **⚠️ This directory is archived.** Production runs on Fly.io since 2026-05-15.
+> The configuration here is kept as a reference of how the GCP deployment
+> looked. **Do not run `tofu apply` from here** — the corresponding GCP
+> resources have all been destroyed and the state bucket is unused.
+>
+> Current infra : `infra/fly/`. See `docs/superpowers/plans/2026-05-15-migrate-to-fly-io.md` for the full migration story.
+
+---
+
+Terraform module that previously deployed webhook-inspector to GCP in a single `dev` env.
 
 > This project uses [OpenTofu](https://opentofu.org/) (the BSL-free fork of Terraform). All HCL is fully compatible with Terraform >= 1.6 if you prefer.
 

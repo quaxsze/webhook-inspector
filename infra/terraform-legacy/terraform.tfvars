@@ -1,0 +1,5 @@
+project_id         = "webhook-inspector-stan-dev"
+image_tag          = "7f85767"
+domain             = "odessa-inspect.org"
+cloudflare_zone_id = "339954524e19560ffa41cf4e27b6ecc0"
+owner_email        = "stanislas.plum@qantum.io"

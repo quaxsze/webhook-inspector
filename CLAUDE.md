@@ -11,10 +11,12 @@ This file is loaded automatically by Claude Code when working in this repo. It d
 
 ## Tooling
 
-- **OpenTofu** (`tofu`), not Terraform — Homebrew dropped Terraform after the BSL license change; OpenTofu is the drop-in fork.
+- **flyctl** (`fly`) for the Fly.io deploys — `fly deploy --config infra/fly/<app>.fly.toml`.
 - **uv** for Python deps: `uv add`, `uv sync`, `uv run` — never `pip install` directly.
 - **pre-commit** is installed — `git commit` runs ruff format + ruff check + a few hygiene hooks automatically. If a hook reformats, re-stage and re-commit.
 - **Make targets**: `make lint`, `make type`, `make test`, `make up`, `make down`, `make migrate`, `make clean`.
+
+> Note: `infra/terraform-legacy/` holds the OpenTofu config from the GCP era — read-only archive.
 
 ## Metrics conventions (V2+)
 
@@ -34,27 +36,29 @@ This file is loaded automatically by Claude Code when working in this repo. It d
 
 ## Infra workflow
 
-- All infra changes go through Terraform (`infra/terraform/`).
-- State is in the GCS backend (`<project>-tfstate` bucket).
-- `tofu apply` locally for substantive changes; the `deploy.yml` workflow auto-applies the Cloud Run resources on `push: main` (it uses `-target=` to skip Cloudflare/domain resources which need a real token).
-- Cloud SQL is `db-f1-micro` with explicit `edition = "ENTERPRISE"` — GCP defaults new instances to `ENTERPRISE_PLUS` which rejects the legacy tier.
-- Cloud Run Jobs gen2 require minimum `memory = "512Mi"`.
+- All infra lives under `infra/fly/` as versioned `*.fly.toml` files.
+- Three Fly apps in `cdg`: `webhook-inspector-db` (self-managed Postgres), `webhook-inspector-web` (FastAPI + viewer), `webhook-inspector-ingestor` (FastAPI ingestor).
+- Postgres was bootstrapped with `fly pg create --name webhook-inspector-db --org personal --region cdg --vm-size shared-cpu-1x --volume-size 10 --initial-cluster-size 1`. **Do not** `fly deploy --config db.fly.toml` — the `flyio/postgres-flex` image expects `FLY_CONSUL_URL` which is only injected by `fly pg create`. `db.fly.toml` is documentation of intent.
+- `fly deploy --remote-only --config infra/fly/<app>.fly.toml` for web/ingestor; CI/CD does this on `push: main` via `.github/workflows/deploy.yml` (uses `FLY_API_TOKEN` GitHub secret).
+- `release_command = "alembic upgrade head"` in `web.fly.toml` replaces the old Cloud Run Job `migrator` — migrations run automatically before each new web revision is promoted.
+- Cleaner is a daily `.github/workflows/cleaner.yml` GH Action that does `flyctl machine run --rm registry.fly.io/webhook-inspector-web:latest -- python -m webhook_inspector.jobs.cleaner`.
 
 ## Domain / DNS
 
-- Production domain: `odessa-inspect.org`, hosted via Cloudflare Registrar (DNS delegated automatically).
-- Cloudflare records are in **DNS-only mode** (gray cloud), `proxied = false`. TLS is Google-managed at Cloud Run.
-- Custom DNS resolvers (NextDNS, etc.) may block the domain locally — use `curl --resolve` or whitelist when debugging.
+- Production domain: `odessa-inspect.org`, hosted via Cloudflare Registrar.
+- Two CNAMEs : `app.odessa-inspect.org → webhook-inspector-web.fly.dev`, `hook.odessa-inspect.org → webhook-inspector-ingestor.fly.dev`. Both in **DNS-only mode** (gray cloud), `proxied = false`. TLS is Let's Encrypt managed by Fly.
+- The web app derives the hook URL from its own host header (`web/app/routes.py:hook_base_url()`), rewriting `app.` → `hook.` — so the web service **must** stay on `app.<domain>`.
 
 ## Observability
 
-- `structlog` for JSON logs. `service.name` field is populated automatically via a logging filter.
-- OpenTelemetry traces export to **Cloud Trace** when `CLOUD_TRACE_ENABLED=true` (production). Locally and in tests, traces go to stdout via `SimpleSpanProcessor` to avoid the pytest-stdout-close race condition.
-- Exporter is `opentelemetry-exporter-gcp-trace` (uses ADC), **not** raw OTLP.
+- `structlog` for JSON logs, captured directly by `fly logs`. `service.name` field is populated automatically via a logging filter.
+- OpenTelemetry traces and metrics export via OTLP/HTTP when `OTLP_ENDPOINT` is set (e.g. Honeycomb). Without it, fallback to `ConsoleSpanExporter` / `ConsoleMetricExporter` (stdout, captured by `fly logs`).
+- Headers go in `OTLP_HEADERS` (comma-separated `key=value`), e.g. `x-honeycomb-team=...,x-honeycomb-dataset=webhook-inspector`.
+- Old `CLOUD_TRACE_ENABLED` / `CLOUD_METRICS_ENABLED` branches still exist in code but are unused on Fly.
 
 ## What this project IS
 
-- A learning side-project to practice modern DevOps on GCP.
+- A learning side-project to practice modern DevOps (now on Fly.io, was on GCP until 2026-05).
 - AI-assisted, transparently — see README disclosure.
 - Single env (`dev` acts as prod). No `prod` workspace yet.
 - Owner-only — contributions welcome, please open an issue first.
@@ -67,4 +71,4 @@ This file is loaded automatically by Claude Code when working in this repo. It d
 
 ## Roadmap
 
-See README. Current state: **V1 Live** (MVP + CI/CD + custom domain + Cloud Trace). Next planned: V2 (custom response + custom OTEL metrics + dashboards).
+See README. Current state: **V2.6** — migrated from GCP Cloud Run + Cloud SQL to Fly.io + self-managed Postgres + Cloudflare R2 (2026-05). See `docs/superpowers/plans/2026-05-15-migrate-to-fly-io.md` for the full migration story.
