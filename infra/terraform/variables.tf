@@ -24,7 +24,7 @@ variable "image_tag" {
 variable "db_tier" {
   type        = string
   default     = "db-f1-micro"
-  description = "Cloud SQL instance tier."
+  description = "Cloud SQL instance tier. Stay on db-f1-micro until sustained traffic reaches ~10x current baseline; bump to db-custom-1-1740 (1 vCPU / 1.7 GB) when query latency p95 exceeds 200ms or CPU stays above 70%."
 }
 
 variable "endpoint_ttl_days" {

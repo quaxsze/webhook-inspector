@@ -1,0 +1,65 @@
+import httpx
+from httpx import ASGITransport
+
+from webhook_inspector.web.app.main import app
+
+
+def _reset_deps():
+    from webhook_inspector.web.app import deps
+
+    deps.get_settings.cache_clear()
+    deps._engine.cache_clear()
+    deps._session_factory.cache_clear()
+
+
+async def test_create_with_slug_returns_token_equal_to_slug(monkeypatch, database_url, engine):
+    monkeypatch.setenv("DATABASE_URL", database_url.replace("+psycopg_async", "+psycopg"))
+    _reset_deps()
+
+    async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.post("/api/endpoints", json={"slug": "my-stripe-test"})
+        assert resp.status_code == 201
+        assert resp.json()["token"] == "my-stripe-test"
+
+
+async def test_slug_conflict_returns_409(monkeypatch, database_url, engine):
+    monkeypatch.setenv("DATABASE_URL", database_url.replace("+psycopg_async", "+psycopg"))
+    _reset_deps()
+
+    async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        first = await c.post("/api/endpoints", json={"slug": "duplicate-slug"})
+        assert first.status_code == 201
+        second = await c.post("/api/endpoints", json={"slug": "duplicate-slug"})
+        assert second.status_code == 409
+        assert "already" in second.text.lower()
+
+
+async def test_invalid_slug_returns_400(monkeypatch, database_url, engine):
+    monkeypatch.setenv("DATABASE_URL", database_url.replace("+psycopg_async", "+psycopg"))
+    _reset_deps()
+
+    async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.post("/api/endpoints", json={"slug": "FOO"})
+        assert resp.status_code == 400
+
+
+async def test_reserved_slug_returns_400(monkeypatch, database_url, engine):
+    monkeypatch.setenv("DATABASE_URL", database_url.replace("+psycopg_async", "+psycopg"))
+    _reset_deps()
+
+    async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.post("/api/endpoints", json={"slug": "api"})
+        assert resp.status_code == 400
+        assert "reserved" in resp.text.lower()
+
+
+async def test_create_without_slug_preserves_v1_behavior(monkeypatch, database_url, engine):
+    monkeypatch.setenv("DATABASE_URL", database_url.replace("+psycopg_async", "+psycopg"))
+    _reset_deps()
+
+    async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.post("/api/endpoints", json={})
+        assert resp.status_code == 201
+        token = resp.json()["token"]
+        # token_urlsafe(16) → 22 chars base64url
+        assert len(token) == 22

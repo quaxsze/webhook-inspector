@@ -1,6 +1,7 @@
+from collections.abc import AsyncIterator
 from uuid import UUID
 
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from webhook_inspector.domain.entities.captured_request import CapturedRequest
@@ -46,6 +47,7 @@ class PostgresRequestRepository(RequestRepository):
         endpoint_id: UUID,
         limit: int = 50,
         before_id: UUID | None = None,
+        q: str | None = None,
     ) -> list[CapturedRequest]:
         stmt = (
             select(RequestTable)
@@ -53,6 +55,11 @@ class PostgresRequestRepository(RequestRepository):
             .order_by(RequestTable.received_at.desc(), RequestTable.id.desc())  # type: ignore[attr-defined]  # SQLAlchemy column descriptors have .desc() at runtime
             .limit(limit)
         )
+
+        if q:
+            stmt = stmt.where(
+                text("search_vector @@ plainto_tsquery('simple', :q)").bindparams(q=q)
+            )
 
         if before_id is not None:
             cursor_row = (
@@ -71,6 +78,29 @@ class PostgresRequestRepository(RequestRepository):
 
         rows = (await self._session.execute(stmt)).scalars().all()
         return [_to_entity(r) for r in rows]
+
+    async def stream_for_export(
+        self,
+        endpoint_id: UUID,
+        max_count: int,
+    ) -> AsyncIterator[CapturedRequest]:
+        stmt = (
+            select(RequestTable)
+            .where(RequestTable.endpoint_id == endpoint_id)  # type: ignore[arg-type]  # SQLAlchemy/mypy strict incompat
+            .order_by(RequestTable.received_at.desc(), RequestTable.id.desc())  # type: ignore[attr-defined]  # SQLAlchemy column descriptors have .desc() at runtime
+            .limit(max_count)
+            .execution_options(yield_per=100)
+        )
+        result = await self._session.stream(stmt)
+        async for row in result.scalars():
+            yield _to_entity(row)
+
+    async def count_by_endpoint(self, endpoint_id: UUID) -> int:
+        stmt = select(func.count(RequestTable.id)).where(  # type: ignore[arg-type]  # SQLAlchemy/mypy strict incompat
+            RequestTable.endpoint_id == endpoint_id  # type: ignore[arg-type]  # SQLAlchemy/mypy strict incompat
+        )
+        result = await self._session.execute(stmt)
+        return int(result.scalar() or 0)
 
 
 def _to_entity(row: RequestTable) -> CapturedRequest:

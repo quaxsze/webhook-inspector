@@ -49,8 +49,15 @@ class FakeRequestRepo(RequestRepository):
     async def find_by_id(self, request_id):
         return next((r for r in self.saved if r.id == request_id), None)
 
-    async def list_by_endpoint(self, endpoint_id, limit=50, before_id=None):
+    async def list_by_endpoint(self, endpoint_id, limit=50, before_id=None, q=None):
         return []
+
+    async def stream_for_export(self, endpoint_id, max_count):
+        for r in [x for x in self.saved if x.endpoint_id == endpoint_id][:max_count]:
+            yield r
+
+    async def count_by_endpoint(self, endpoint_id):
+        return len([r for r in self.saved if r.endpoint_id == endpoint_id])
 
 
 class FakeBlobStorage(BlobStorage):

@@ -34,6 +34,17 @@ resource "google_sql_database_instance" "main" {
       value = "100"
     }
 
+    # Cloud SQL Insights — free on db-f1-micro; required for the
+    # postgresql/insights/aggregate/latencies distribution metric used by the
+    # "Cloud SQL query latency p95" alert (see monitoring_alerts.tf).
+    insights_config {
+      query_insights_enabled  = true
+      query_plans_per_minute  = 5
+      query_string_length     = 1024
+      record_application_tags = false
+      record_client_address   = false
+    }
+
     user_labels = local.common_labels
   }
 }

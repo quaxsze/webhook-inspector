@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from uuid import UUID
 
 from webhook_inspector.domain.entities.captured_request import CapturedRequest
@@ -17,4 +18,19 @@ class RequestRepository(ABC):
         endpoint_id: UUID,
         limit: int = 50,
         before_id: UUID | None = None,
+        q: str | None = None,
     ) -> list[CapturedRequest]: ...
+
+    @abstractmethod
+    def stream_for_export(
+        self,
+        endpoint_id: UUID,
+        max_count: int,
+    ) -> AsyncIterator[CapturedRequest]:
+        """Yield captured requests ordered by received_at DESC, capped at max_count."""
+        ...
+
+    @abstractmethod
+    async def count_by_endpoint(self, endpoint_id: UUID) -> int:
+        """Return total number of captured requests for the endpoint."""
+        ...

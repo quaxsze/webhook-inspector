@@ -23,3 +23,15 @@ class ResponseBodyTooLargeError(EndpointValidationError):
 
 class ForbiddenResponseHeaderError(EndpointValidationError):
     """response_headers contains a header that must be controlled by the server."""
+
+
+class InvalidSlugError(EndpointValidationError):
+    """slug fails the format regex (length / charset / leading/trailing hyphen)."""
+
+
+class ReservedSlugError(EndpointValidationError):
+    """slug is on the reserved list and cannot be claimed."""
+
+
+class SlugAlreadyTakenError(Exception):
+    """slug is already used by another endpoint."""

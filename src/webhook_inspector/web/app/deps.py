@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from webhook_inspector.application.use_cases.create_endpoint import CreateEndpoint
+from webhook_inspector.application.use_cases.export_requests import ExportRequests
 from webhook_inspector.application.use_cases.list_requests import ListRequests
 from webhook_inspector.config import Settings
 from webhook_inspector.domain.ports.metrics_collector import MetricsCollector
@@ -21,6 +22,7 @@ from webhook_inspector.infrastructure.repositories.endpoint_repository import (
 from webhook_inspector.infrastructure.repositories.request_repository import (
     PostgresRequestRepository,
 )
+from webhook_inspector.infrastructure.storage.factory import make_blob_storage
 
 
 @lru_cache(maxsize=1)
@@ -88,4 +90,16 @@ async def get_list_requests(
     return ListRequests(
         endpoint_repo=PostgresEndpointRepository(session),
         request_repo=PostgresRequestRepository(session),
+    )
+
+
+async def get_export_requests(
+    session: AsyncSession = Depends(get_session),  # noqa: B008
+    settings: Settings = Depends(get_settings),  # noqa: B008
+) -> ExportRequests:
+    return ExportRequests(
+        endpoint_repo=PostgresEndpointRepository(session),
+        request_repo=PostgresRequestRepository(session),
+        blob_storage=make_blob_storage(settings),
+        max_requests=settings.export_max_requests,
     )

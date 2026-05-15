@@ -98,7 +98,8 @@ Alerts active :
 
 - **High p95 ingest latency** — capture_duration p95 > 1s for 5 min
 - **High 5xx rate (ingestor)** — Cloud Run 5xx requests > threshold for 5 min
-- **Cloud SQL CPU saturated** — CPU > 80% for 10 min
+- **Cloud SQL CPU > 70% sustained (10min)** — tier-upgrade signal (db-f1-micro → db-custom-1-1740)
+- **Cloud SQL query latency p95 > 200ms (5min)** — tier-upgrade signal; relies on Cloud SQL Insights (enabled in `cloudsql.tf`)
 - **Cloud SQL disk pressure** — disk > 90%
 - **Cleaner stale** — no heartbeat in 26h
 

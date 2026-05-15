@@ -152,13 +152,79 @@ Constraints:
 
 You can also configure all of this via the landing page's "Advanced options" disclosure.
 
+## Vanity URL slug
+
+```bash
+curl -X POST https://app.odessa-inspect.org/api/endpoints \
+  -H 'Content-Type: application/json' \
+  -d '{"slug": "my-stripe-test"}'
+```
+
+Constraints:
+- 3–32 chars, lowercase letters / digits / hyphens, no leading/trailing hyphen
+- Reserved slugs (`api`, `health`, `stripe`, `github`, …) return 400
+- Already-claimed slugs return 409
+
+Without `slug`, you still get a random 22-char token (V1 behavior).
+
+## Search captured requests
+
+```bash
+curl "https://app.odessa-inspect.org/api/endpoints/$TOKEN/requests?q=payment_intent.succeeded"
+```
+
+Searches across method, path, body (first 8 KB), and headers. Powered by Postgres `tsvector` + GIN index.
+
+Notes / limitations:
+- **AND semantics**: `q=foo bar` matches rows containing BOTH `foo` AND `bar` (any order). Not phrase search.
+- **Hyphenated tokens split**: the `simple` tsearch config tokenizes on `-`, so `x-stripe-signature` is indexed as three tokens (`x`, `stripe`, `signature`). Search the full header name and you'll match via AND.
+- **Slash-prefixed paths kept whole**: `/health` is indexed as the single token `'/health'` (the leading `/` is preserved). Search for `/health` (with the slash) to match it; bare `health` won't unless it also appears in body/headers.
+- **8 KB body cap**: bodies offloaded to GCS (> 8 KB) aren't searchable.
+- **Live updates don't honor active search**: requests captured during a search session aren't auto-filtered. Re-submit the query to refresh.
+
+## Export captured requests
+
+```bash
+curl -OJ "https://app.odessa-inspect.org/api/endpoints/$TOKEN/export.json"
+```
+
+Streams a single JSON file with full bodies (including bodies offloaded to GCS, fetched on-the-fly). Cap: 10 000 requests per export (`EXPORT_MAX_REQUESTS` env override). Beyond the cap returns 413; filter-then-export will land in V3.
+
+Response format:
+
+```json
+{
+  "endpoint": {
+    "token": "my-stripe-test",
+    "created_at": "...",
+    "expires_at": "...",
+    "response": { "status_code": 200, "body": "...", "headers": {}, "delay_ms": 0 }
+  },
+  "exported_at": "...",
+  "exported_request_count": 142,
+  "requests": [
+    {
+      "id": "...",
+      "method": "POST",
+      "path": "/",
+      "headers": {...},
+      "body": "...full body, inlined from DB or fetched from GCS...",
+      "body_size": 1234,
+      "received_at": "..."
+    }
+  ]
+}
+```
+
+`requests` are ordered most-recent-first. `exported_request_count` is the count of rows in the array, not the endpoint's lifetime counter.
+
 ## Roadmap
 
 | Phase | Status | Focus |
 |-------|--------|-------|
 | V1 | ✅ Live | MVP : 5 endpoints + live viewer + Cloud Run + WIF CI/CD + custom domain + Cloud Trace |
 | V2 | ✅ Live | Custom response (status/body/headers/delay) + copy-as-curl + custom OTEL metrics + Cloud Monitoring dashboards + alerting |
-| V2.5 | 🟡 Planned | **UX produit** — vanity URL slug + search/filter (Postgres `tsvector` + GIN index) + export captured requests as JSON |
+| V2.5 | ✅ Live | **UX produit** — vanity URL slug + search/filter (Postgres `tsvector` + GIN index) + export captured requests as JSON |
 | V3 | 🟡 Planned | **Forward webhook to target(s)** — URL + Slack + Email (Pub/Sub topic + worker + dead-letter queue + exponential retry + idempotency keys) |
 | V4 | 🟡 Planned | Rate limiting + Cloudflare WAF custom rules + Memorystore Redis (distributed counters) |
 | V5 | 🟡 Planned | **Auth + power user** — Google OAuth + claimed URLs + activity log per-account + statistics charts + API tokens + (optional) DNSBL lookup |

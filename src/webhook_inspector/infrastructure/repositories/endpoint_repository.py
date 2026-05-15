@@ -2,9 +2,11 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import delete, func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from webhook_inspector.domain.entities.endpoint import Endpoint
+from webhook_inspector.domain.exceptions import SlugAlreadyTakenError
 from webhook_inspector.domain.ports.endpoint_repository import EndpointRepository
 from webhook_inspector.infrastructure.database.models import EndpointTable
 
@@ -26,7 +28,12 @@ class PostgresEndpointRepository(EndpointRepository):
             response_delay_ms=endpoint.response_delay_ms,
         )
         self._session.add(row)
-        await self._session.flush()
+        try:
+            await self._session.flush()
+        except IntegrityError as e:
+            raise SlugAlreadyTakenError(
+                f"endpoint with token '{endpoint.token}' already exists"
+            ) from e
 
     async def find_by_token(self, token: str) -> Endpoint | None:
         stmt = select(EndpointTable).where(EndpointTable.token == token)  # type: ignore[arg-type]  # SQLAlchemy/mypy strict incompat

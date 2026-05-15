@@ -9,15 +9,35 @@
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen">
-  <header class="border-b border-slate-700 px-6 py-4">
-    <h1 class="text-xl font-mono">webhook-inspector</h1>
-    <p class="text-sm text-slate-400 mt-1">
-      URL d'ingestion :
-      <code class="bg-slate-800 px-2 py-1 rounded">{{ hook_url }}</code>
-    </p>
+  <header class="border-b border-slate-700 px-6 py-4 flex items-start justify-between gap-4">
+    <div>
+      <h1 class="text-xl font-mono">webhook-inspector</h1>
+      <p class="text-sm text-slate-400 mt-1">
+        URL d'ingestion :
+        <code class="bg-slate-800 px-2 py-1 rounded">{{ hook_url }}</code>
+      </p>
+    </div>
+    <a class="export-button shrink-0 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-mono px-3 py-2 rounded"
+       href="/api/endpoints/{{ token }}/export.json"
+       download>
+      Export JSON
+    </a>
   </header>
 
   <main class="px-6 py-4">
+    <form class="mb-3"
+          hx-get="/api/endpoints/{{ token }}/requests.fragment"
+          hx-target="#requests"
+          hx-trigger="keyup changed delay:300ms from:input[name='q'], search from:input[name='q']"
+          hx-swap="innerHTML"
+          onsubmit="event.preventDefault()">
+      <input type="search"
+             name="q"
+             placeholder="Search captured requests..."
+             aria-label="Search captured requests"
+             maxlength="200"
+             class="w-full bg-slate-800 border border-slate-700 text-slate-100 rounded px-3 py-2 text-sm font-mono placeholder-slate-500 focus:outline-none focus:border-emerald-400">
+    </form>
     <div hx-ext="sse" sse-connect="/stream/{{ token }}" class="space-y-2">
       <ul id="requests" sse-swap="message" hx-swap="afterbegin" class="space-y-2">
         {% for req in initial_requests %}

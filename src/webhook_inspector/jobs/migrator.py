@@ -18,6 +18,7 @@ def main() -> None:
         settings.service_name + "-migrator",
         settings.environment,
         cloud_trace_enabled=settings.cloud_trace_enabled,
+        sample_ratio=settings.trace_sample_ratio,
     )
 
     logger.info("starting migration")

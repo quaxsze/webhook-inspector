@@ -1,8 +1,8 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Column
-from sqlalchemy.dialects.postgresql import INET, JSONB
+from sqlalchemy import Column, Computed
+from sqlalchemy.dialects.postgresql import INET, JSONB, TSVECTOR
 from sqlmodel import Field, SQLModel
 
 
@@ -39,3 +39,24 @@ class RequestTable(SQLModel, table=True):
     blob_key: str | None = Field(default=None)
     source_ip: str = Field(sa_column=Column(INET, nullable=False))
     received_at: datetime = Field(nullable=False)
+
+    # V2.5 — generated tsvector column for full-text search. Mirrors the
+    # GENERATED ALWAYS expression in migration 0003 so SQLAlchemy:
+    #   - never tries to INSERT/UPDATE this column (Computed handles it),
+    #   - can recreate the column in tests via SQLModel.metadata.create_all().
+    search_vector: str | None = Field(
+        default=None,
+        sa_column=Column(
+            "search_vector",
+            TSVECTOR,
+            Computed(
+                "to_tsvector('simple', "
+                "coalesce(method, '') || ' ' || "
+                "coalesce(path, '') || ' ' || "
+                "coalesce(body_preview, '') || ' ' || "
+                "coalesce(headers::text, ''))",
+                persisted=True,
+            ),
+            nullable=True,
+        ),
+    )
