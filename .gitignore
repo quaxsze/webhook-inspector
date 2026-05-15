@@ -20,11 +20,11 @@ blobs/
 .idea/
 .vscode/
 
-# Terraform
-infra/terraform/.terraform/
-infra/terraform/.terraform.lock.hcl
-infra/terraform/terraform.tfvars
-infra/terraform/*.tfstate
-infra/terraform/*.tfstate.backup
-infra/terraform/crash.log
-infra/terraform/*.out
+# Terraform / OpenTofu (covers infra/terraform/ AND infra/terraform-legacy/)
+infra/terraform*/.terraform/
+infra/terraform*/.terraform.lock.hcl
+infra/terraform*/terraform.tfvars
+infra/terraform*/*.tfstate
+infra/terraform*/*.tfstate.backup
+infra/terraform*/crash.log
+infra/terraform*/*.out

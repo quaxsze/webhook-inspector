@@ -27,11 +27,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         settings.service_name + "-app",
         settings.environment,
         cloud_trace_enabled=settings.cloud_trace_enabled,
+        otlp_endpoint=settings.otlp_endpoint,
+        otlp_headers=settings.otlp_headers,
         sample_ratio=settings.trace_sample_ratio,
     )
     configure_metrics(
         service_name=settings.service_name + "-app",
         cloud_metrics_enabled=settings.cloud_metrics_enabled,
+        otlp_endpoint=settings.otlp_endpoint,
+        otlp_headers=settings.otlp_headers,
     )
 
     # Build notifier once and store on app.state so request-scoped deps can read it.

@@ -19,11 +19,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         settings.service_name + "-ingestor",
         settings.environment,
         cloud_trace_enabled=settings.cloud_trace_enabled,
+        otlp_endpoint=settings.otlp_endpoint,
+        otlp_headers=settings.otlp_headers,
         sample_ratio=settings.trace_sample_ratio,
     )
     configure_metrics(
         service_name=settings.service_name + "-ingestor",
         cloud_metrics_enabled=settings.cloud_metrics_enabled,
+        otlp_endpoint=settings.otlp_endpoint,
+        otlp_headers=settings.otlp_headers,
     )
     instrument_app(app, _engine())
     yield

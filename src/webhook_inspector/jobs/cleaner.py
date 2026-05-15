@@ -45,6 +45,8 @@ def main() -> None:
         settings.service_name + "-cleaner",
         settings.environment,
         cloud_trace_enabled=settings.cloud_trace_enabled,
+        otlp_endpoint=settings.otlp_endpoint,
+        otlp_headers=settings.otlp_headers,
         sample_ratio=settings.trace_sample_ratio,
     )
 
@@ -62,6 +64,8 @@ def main() -> None:
     configure_metrics(
         service_name=settings.service_name + "-cleaner",
         cloud_metrics_enabled=settings.cloud_metrics_enabled,
+        otlp_endpoint=settings.otlp_endpoint,
+        otlp_headers=settings.otlp_headers,
     )
     collector = OtelMetricsCollector(otel_metrics.get_meter("webhook-inspector-cleaner"))
 
