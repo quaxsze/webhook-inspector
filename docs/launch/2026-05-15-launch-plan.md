@@ -8,7 +8,7 @@
 - [État actuel — où on en est vraiment](#état-actuel--où-on-en-est-vraiment)
 - [Décisions à prendre AVANT exécution](#décisions-à-prendre-avant-exécution)
 - [Phase -1 — Brand & docs consistency (1 semaine)](#phase--1--brand--docs-consistency-1-semaine)
-- [Phase 0 — Pivot produit (8-9 semaines)](#phase-0--pivot-produit-8-9-semaines)
+- [Phase 0 — Pivot produit (9-10 semaines)](#phase-0--pivot-produit-9-10-semaines)
 - [Phase 1 — Customer discovery (1 semaine)](#phase-1--customer-discovery-1-semaine)
 - [Phase 2 — Soft launch (2 semaines)](#phase-2--soft-launch-2-semaines)
 - [Phase 3 — Show HN + launch officiel (1 jour + 1 semaine)](#phase-3--show-hn--launch-officiel-1-jour--1-semaine)
@@ -88,7 +88,7 @@ Avant de lister les "décisions à prendre", calage de l'état réel du repo au 
 
 ### Conséquences pour Phase 0
 
-L'écart entre l'état actuel et le pitch V3 est **bien plus large que 60-80h**. La V3 spec chiffre 7 semaines de dev pur + buffer = **8-9 semaines solo full-time**. C'est ce chiffrage qui prime, pas l'estimation initiale optimiste.
+L'écart entre l'état actuel et le pitch V3 est **bien plus large que 60-80h**. La V3 spec chiffre **8-9 semaines solo full-time** pour les features F1-F7 (dev pur + buffer). Phase 0 ajoute ~2 semaines d'extras propres au lancement public (anti-abuse, refonte landing/docs), pour un total **9-10 semaines**. C'est ce chiffrage qui prime, pas l'estimation initiale optimiste.
 
 ---
 
@@ -116,12 +116,13 @@ Disponibilité vérifiée le 2026-05-15 :
 
 ### 2. Sortie du domaine actuel `odessa-inspect.org`
 
-Domaine actuellement live et serveur Fly attaché aux CNAMEs `app.` et `hook.`. Procédure :
+Domaine actuellement live + CNAMEs `app.` et `hook.` pointent sur Fly. **Aucun utilisateur réel** — donc pas de redirect 301 à mettre en place. Un 301 serait de toute façon mauvais sur l'ingestor (POST/PUT/PATCH webhooks) : beaucoup de providers ne suivent pas le redirect proprement, et un 301 peut réécrire la méthode HTTP côté client.
+
+Procédure simple :
 
 1. Acheter `hooktrace.io`, attacher Fly via `fly certs add app.hooktrace.io --app webhook-inspector-web` et `fly certs add hook.hooktrace.io --app webhook-inspector-ingestor`
-2. Pointer les CNAMEs `app.hooktrace.io` → `webhook-inspector-web.fly.dev` et `hook.hooktrace.io` → `webhook-inspector-ingestor.fly.dev`
-3. Garder `odessa-inspect.org` actif avec **301 redirect** (via Cloudflare Page Rules ou Fly redirect rule) vers `hooktrace.io` pendant 6 mois minimum (rétention 7j × buffer)
-4. Après 6 mois sans trafic significatif sur l'ancien domaine, laisser expirer
+2. Créer les CNAMEs Cloudflare `app.hooktrace.io` → `webhook-inspector-web.fly.dev` et `hook.hooktrace.io` → `webhook-inspector-ingestor.fly.dev`
+3. **Couper `odessa-inspect.org` net** : retirer les CNAMEs `app.odessa-inspect.org` et `hook.odessa-inspect.org` chez Cloudflare ; révoquer les certs Fly (`fly certs remove app.odessa-inspect.org` etc.). Laisser le domaine expirer à son renouvellement naturel.
 
 > Note "Odessa" : potentiellement problématique géopolitiquement vu le contexte 2022+ (ville d'Ukraine). Argument supplémentaire pour la sortie.
 
@@ -154,18 +155,50 @@ Acter explicitement avant Phase 2. Sans co-founder distribution, viser un object
 
 ## Phase -1 — Brand & docs consistency (1 semaine)
 
-Prérequis **avant** de toucher au produit. La comm interne du repo est aujourd'hui incohérente — l'arch diagram du README parle encore de Cloud Run / Cloud Trace, la landing est en anglais mais le viewer en `lang="fr"`, et le branding hésite entre `webhook-inspector` (code), `odessa-inspect` (domaine actuel), et `hooktrace` (cible). Avant tout marketing externe, on aligne.
+Prérequis **avant** de toucher au produit. La comm interne du repo est aujourd'hui incohérente — l'arch diagram du README parle encore de Cloud Run / Cloud Trace, la landing est en anglais mais le viewer en `lang="fr"`, le branding mélange `webhook-inspector` (code), `odessa-inspect` (URLs dans tout le repo), et `hooktrace` (cible). Avant tout marketing externe, on aligne.
 
-### Checklist
+### Checklist — remplacement systématique `odessa-inspect.org` → `hooktrace.io`
 
-- [ ] **README** : redessiner l'architecture diagram pour refléter Fly + R2 + OTLP. Garder la mention historique Cloud Run sous la roadmap V2.6 (déjà fait), pas en haut du doc.
-- [ ] **viewer.html** : passer `lang="fr"` → `lang="en"`, traduire les 3-4 strings statiques restantes
-- [ ] **landing.html** : aligner le H1 sur la cible (`hooktrace` ou autre) une fois le domaine choisi. Avant ça, le laisser à `webhook-inspector` pour ne pas créer de doc cassée transitoire.
-- [ ] **CONTRIBUTING.md** : verifier que les conventions matchent l'état réel (uv, Fly, etc.)
-- [ ] **docs/specs/2026-05-11-webhook-inspector-design.md** : ajouter en haut un banner "design originel — voir aussi docs/launch/ pour le pivot V3"
-- [ ] Status badges README : décommissionner le badge Deploy si il pointe encore sur l'ancien workflow
+À faire **après l'achat du domaine** (décision 1) et **avant Phase 0** :
 
-Pas de feature produit ici, juste du nettoyage. **~1 semaine** ou en parallèle de Phase 0 si tu peux multitasker. Mais commencé AVANT Phase 1 (customer discovery) — sinon les interviewés tombent sur des incohérences.
+- [ ] **README.md** :
+  - Lignes 118-119 (`Live URLs` : `app.odessa-inspect.org` / `hook.odessa-inspect.org`) → `hooktrace.io`
+  - Lignes 132, 155, 170, 185 (exemples `curl` dans la doc) → idem
+  - Redessiner l'architecture diagram (haut du fichier) pour refléter Fly + R2 + OTLP. Garder la mention historique Cloud Run uniquement sous la roadmap V2.6.
+  - Statut badges (lignes 3-4) : pointer vers le nouveau repo si transfert (cf. tâche GitHub ci-dessous)
+  - Ligne 236 : lien GitHub Security Advisories → nouveau repo si transfert
+
+- [ ] **src/webhook_inspector/web/app/templates/landing.html** :
+  - Ligne 6 : `<title>webhook-inspector...</title>` → `<title>hooktrace — ...</title>`
+  - Ligne 10 : `og:title content="webhook-inspector"` → `hooktrace`
+  - Ligne 13 : `og:url` → `https://hooktrace.io/`
+  - Ligne 23 : `<h1>webhook-inspector</h1>` → `<h1>hooktrace</h1>`
+  - Lignes 140, 144 : exemples `hook.odessa-inspect.org/h/...` → `hook.hooktrace.io/h/...`
+  - Ligne 152 : lien `github.com/quaxsze/webhook-inspector` → nouveau repo si transfert
+
+- [ ] **src/webhook_inspector/web/app/templates/viewer.html** : passer `lang="fr"` → `lang="en"`, traduire les 3-4 strings statiques restantes, harmoniser le H1 sur `hooktrace`
+
+- [ ] **docs/specs/2026-05-13-v2-custom-response-and-observability-design.md** : remplacer 4 occurrences `odessa-inspect.org` (lignes 6, 139, 259, 618). Si c'est de l'historique, ajouter en haut un banner "snapshot V2 — domaine actuel = hooktrace.io" plutôt que rewrite
+
+- [ ] **docs/specs/2026-05-13-v2.5-ux-product-features-design.md** : ligne 33 user story → `hook.hooktrace.io`
+
+- [ ] **docs/specs/2026-05-11-webhook-inspector-design.md** : banner historique "design originel — voir docs/launch/ pour le pivot V3"
+
+- [ ] **CONTRIBUTING.md** : vérifier que les conventions matchent l'état réel (uv, Fly, etc.)
+
+### Checklist — migration identité GitHub
+
+État actuel : repo `github.com/quaxsze/webhook-inspector`, org perso, badges + liens README + landing y pointent. Le plan a déjà acté la création de l'org `hooktrace-io`. Reste à décider du sort du repo lui-même :
+
+- [ ] **Décision** : trois options, choisir UNE
+  - **Option A — Transfer repo** : `gh repo transfer quaxsze/webhook-inspector hooktrace-io/webhook-inspector` puis rename → `hooktrace-io/hooktrace`. GitHub maintient automatiquement les redirects (URLs `quaxsze/webhook-inspector` → `hooktrace-io/hooktrace`) pour les `git clone`/`gh` mais **PAS** pour les liens README/badges qui restent broken jusqu'à update. Risque : tu perds le link entre le compte perso et le projet (stars portées au compte transféré).
+  - **Option B — Fork + archive** : créer `hooktrace-io/hooktrace` comme fork repropre, archive `quaxsze/webhook-inspector` en read-only avec un lien sticky vers le nouveau repo. Perd l'historique de stars mais clean break.
+  - **Option C — Rester sur `quaxsze`** : repo perso, brand projet sur le domaine + org GitHub `hooktrace-io` pour les éventuels sub-projects (SDK, CLI...). Pragma pour solo dev, mais incohérence brand visible.
+- [ ] Une fois la décision prise, **update tous les badges + liens** vers la nouvelle URL canonical du repo (cf. checklist README + landing ci-dessus)
+
+### Effort
+
+**~1 semaine** solo, ou en parallèle de Phase 0 si tu peux multitasker — mais commencé **AVANT Phase 1** (customer discovery), sinon les interviewés tombent sur des incohérences. La migration GitHub elle-même est rapide (~30 min) mais demande de réfléchir à l'option A/B/C en amont.
 
 ---
 
@@ -543,7 +576,7 @@ Règle générale qui sous-tend tout ça : **un dev tool bootstrap qui n'a pas d
 - **Co-founder marketing** : décision dans la première semaine de Phase 0. Solo → cap MRR à ~€3-5k, accepter. Avec co-founder → viser €20k+ MRR mais partager 30-50% equity.
 - **Donations / sponsorship** : avant le paid tier (mois 6+), ouvrir un GitHub Sponsors et un OpenCollective. Pas de la monétisation sérieuse mais signal "ce projet vit".
 - **Self-host docker-compose one-liner** : prioritaire dès Phase 0 pour le pitch OSS. Un `docker run hooktrace/hooktrace` qui marche en 30s.
-- **Migration domaine** : `odessa-inspect.org` → `hooktrace.io`. 301 pendant 6 mois minimum (cf. décision 2).
+- **Migration domaine** : `odessa-inspect.org` → `hooktrace.io`. Coupure nette (aucun utilisateur réel, pas de redirect 301 — voir décision 2).
 
 ---
 
