@@ -51,21 +51,31 @@ Avant de lister les "décisions à prendre", calage de l'état réel du repo au 
 
 ### Déjà fait ✅ (ne pas re-décider)
 
-- **Prod déployée sur Fly.io** : `webhook-inspector-web` + `-ingestor` + `-db` en `cdg`. `infra/fly/` versionné. Cf. `docs/superpowers/plans/2026-05-15-migrate-to-fly-io.md`.
-- **Storage blob = Cloudflare R2** (`BLOB_STORAGE_BACKEND=s3`, adapter `s3_blob_storage.py`).
-- **Observabilité OTLP** configurée côté code (`OTLP_ENDPOINT` env var, exporters branchés). Honeycomb pas encore wired en prod (env var pas posée), mais le runtime fallback console fonctionne.
-- **Domaine `odessa-inspect.org`** live, CNAMEs `app.` et `hook.` pointent sur Fly, certs Let's Encrypt OK.
-- **Repo public** sur GitHub (`quaxsze/webhook-inspector`).
+#### Vérifiable depuis le repo (snapshot au commit `f48543c`)
+
+- **Storage blob = Cloudflare R2** (`config.py` : `BLOB_STORAGE_BACKEND` accepte `s3`, adapter présent en `infrastructure/storage/s3_blob_storage.py`).
+- **Observabilité OTLP** configurée côté code (`config.py:otlp_endpoint`, exporters branchés dans `observability/tracing.py` et `metrics.py`).
+- **Repo public** sur GitHub (`quaxsze/webhook-inspector` — visible via badges README).
 - **Licence MIT** (`LICENSE` à la racine).
 - **CI/CD `flyctl deploy` sur push main** (`.github/workflows/deploy.yml`).
 - **Features V1 + V2 + V2.5** : create endpoint, viewer live (SSE), search tsvector, export JSON, custom response (status/body/headers/delay), vanity slugs.
+- **Stack Fly versionnée** : `infra/fly/{db,web,ingestor}.fly.toml` + `infra/fly/README.md`.
+
+#### Vérifié manuellement le 2026-05-15 — à re-vérifier si stale
+
+> Ces faits dépendent d'un état runtime / cloud externe et ne sont pas auto-vérifiables depuis un `git clone`. À traiter comme snapshot daté ; si tu reprends ce plan dans 3 mois, re-confirmer via `fly status` / `dig` / dashboard Honeycomb avant d'agir.
+
+- Prod déployée sur Fly.io : `webhook-inspector-web` + `-ingestor` + `-db` en région `cdg` (vérifié via `fly status` post-cutover).
+- Domaine `odessa-inspect.org` live : CNAMEs `app.` et `hook.` pointent sur Fly, certs Let's Encrypt issued.
+- Honeycomb **non wired** en prod (env var `OTLP_ENDPOINT` pas posée sur les Fly apps) — runtime fallback console capture les spans dans `fly logs`.
+- Migration GCP → Fly **terminée**, projet GCP `webhook-inspector-stan-dev` en `DELETE_REQUESTED` (soft-delete 30 jours).
 
 ### Pas encore fait, à acter en Phase 0 🟡
 
 | Composant | État courant | Cible V3 |
 |---|---|---|
 | Rétention | `endpoint_ttl_days = 7` (`config.py`), cleaner purge à 7j | 30 jours pour free, 90j Pro, 1 an Team |
-| Anti-abuse | Juste `max_body_bytes` côté ingestor — pas de rate limit, pas de freeze heuristique, pas de WAF rules | Cloudflare WAF + rate limit Redis + freeze auto |
+| Anti-abuse | Juste `max_body_bytes` côté ingestor — pas de rate limit, pas de WAF rules, pas de détection abuse | Cloudflare WAF + rate limit Redis (IP + endpoint) + flag pour review humain sur endpoints suspects (pas de freeze auto en V3, risque faux positifs) |
 | Schéma DB | Tables `endpoints` + `requests` V2.5 uniquement | + `signature_status`, `detected_integration`, `detected_event_type`, `schema_drift`, `trace_summary`, + tables `replays`, `forwards`, `inferred_schemas` |
 | HMAC built-in | Aucun | 9 services (cf. V3 spec) |
 | Replay / Forward / Transform | Aucun | F2, F5, F6 du V3 spec |
@@ -272,7 +282,7 @@ Tester sur audiences niche pour ramasser bugs + feedback avant Show HN.
 ### Show HN
 
 - **Quand** : mardi/mercredi/jeudi, 14h-16h UTC (matin Europe, début après-midi US-East)
-- **Titre** : `Show HN: Hooktrace – observability for webhooks (replay, transform, forward, open source)`
+- **Titre** : à figer au moment du launch en fonction du scope effectivement livré. Template : `Show HN: <Name> – observability for webhooks (<features>, open source)`. Substituer `<features>` par les 2-3 features réellement shippées qui sont visuellement les plus fortes — typiquement `replay, HMAC validation` si scope minimal, ou `replay, transform, forward` si F5+F6 livrés. Ne jamais inclure une feature qui a glissé en V3.5.
 - **Body** : 3 paragraphes max. Problème → solution → invitation. **Aucun emoji, aucun hype**.
 - **Préparer** : screenshots dans le body (Imgur), GIF démo, lien GitHub, lien doc
 - **Répondre dans les 6 premières heures** à TOUS les commentaires, même les critiques (surtout les critiques)
@@ -522,4 +532,4 @@ Règle générale qui sous-tend tout ça : **un dev tool bootstrap qui n'a pas d
 - **La distribution > la technique** dans cette catégorie. Tu peux avoir le meilleur produit, sans SEO+communauté tu plafonnes à 100 users.
 - **L'observabilité est ton vrai moat**, pas le clone webhook.site. Capitalise ta stack OTEL/Honeycomb au max — chaque feature qui n'existerait pas sans OTEL est défensable.
 - **Patience 18-24 mois** avant un éventuel €5-10k MRR. Webhook.site a mis ~10 ans pour ses $20k/mo, et c'est un produit techniquement médiocre mais distribué de manière imbattable.
-- **L'angle "self-hostable" matters** : il sert le free tier (offre alternative crédible aux hosters payants), il sert la communauté (PRs externes), il neutralise la critique "vendor lock-in" sur Show HN, et il est cohérent avec AGPL.
+- **L'angle "self-hostable" matters** : il sert le free tier (offre alternative crédible aux hosters payants), il sert la communauté (PRs externes), et il neutralise la critique "vendor lock-in" sur Show HN. Sa cohérence avec un éventuel changement de licence (cf. décision 4 postponée mois 6+) est un point à arbitrer à ce moment-là, pas un acquis.
