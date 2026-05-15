@@ -1,6 +1,19 @@
+# DOCUMENTATION ONLY — DO NOT `fly deploy --config` THIS FILE.
+#
+# `flyio/postgres-flex` requires `FLY_CONSUL_URL` (cluster coordination), which
+# is injected by `fly pg create` but NOT by `fly deploy`. A naive deploy crashes
+# with `panic: failed initialize cluster state store: consul token not set`.
+#
+# Provision via:
+#   fly pg create --name webhook-inspector-db --org personal --region cdg \
+#                 --vm-size shared-cpu-1x --volume-size 10 --initial-cluster-size 1
+#
+# This file documents the *intent* (region, image, vm size, mount, port) so it's
+# discoverable from the repo. The actual machine config is managed by Fly.
+#
 # Self-managed Postgres on Fly Machines.
 # Image: flyio/postgres-flex (official Fly PG image, tuned for the platform).
-# Backups: snapshots of the pg_data volume (fly volumes snapshots create ...).
+# Backups: snapshots of the pg_data volume (auto-enabled, 5-day retention).
 # No HA in this config — single primary. Upgrade by stopping the machine,
 # creating a new one with the next image tag, and restarting.
 app            = "webhook-inspector-db"

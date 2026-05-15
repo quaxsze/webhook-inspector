@@ -888,126 +888,87 @@ git commit -m "chore(infra): scaffold infra/fly/ directory"
 ### Task B2: Deploy self-managed Postgres on Fly
 
 **Files:**
-- Create: `infra/fly/db.fly.toml`
+- Create: `infra/fly/db.fly.toml` (documentation only — see warning below)
 
-- [ ] **Step 1: Create the Fly app**
+**⚠️ Provisioning gotcha — use `fly pg create`, not `fly deploy`.**
 
-Run:
-```bash
-cd /Users/stan/Work/webhook-inspector
-fly apps create webhook-inspector-db --org personal
-```
-Expected: "New app created: webhook-inspector-db".
+The `flyio/postgres-flex:16` image expects a `FLY_CONSUL_URL` env var that is injected by the `fly pg create` command but **not** by `fly deploy --config db.fly.toml`. A naive `fly deploy` produces a crash loop with `panic: failed initialize cluster state store: consul token not set`. Use the official bootstrap command instead — the resulting app is still **self-managed Postgres on your org**, you keep full control (image, machines, volume, ssh, snapshots), `fly pg create` is just the convenience wrapper that handles Consul provisioning correctly.
 
-- [ ] **Step 2: Allocate IPv6 (private; no public IPv4 — PG is only reachable via private network)**
+The `db.fly.toml` file remains in the repo as documentation of intent (volume size, region, vm size), but Fly's internal machine config is what's actually deployed — managed by Fly via the `fly pg` commands.
 
-Run: `fly ips allocate-v6 --private --app webhook-inspector-db`
-Expected: a `fdaa:…` IPv6 listed.
-
-- [ ] **Step 3: Create the data volume**
+- [ ] **Step 1: Provision the Postgres cluster**
 
 Run:
 ```bash
-fly volumes create pg_data \
-  --app webhook-inspector-db \
+fly pg create \
+  --name webhook-inspector-db \
+  --org personal \
   --region cdg \
-  --size 10 \
-  --yes
+  --vm-size shared-cpu-1x \
+  --volume-size 10 \
+  --initial-cluster-size 1
 ```
-Expected: volume created in `cdg`, 10GB.
+Expected: ~2–3 min, ends with "Postgres cluster webhook-inspector-db created" and prints `Username: postgres`, `Password: <generated>`, `Hostname: webhook-inspector-db.internal`, `Connection string: postgres://postgres:<pw>@webhook-inspector-db.flycast:5432`.
 
-- [ ] **Step 4: Write the fly.toml**
-
-Create `infra/fly/db.fly.toml`:
-```toml
-# Self-managed Postgres on Fly Machines.
-# Image: flyio/postgres-flex (official Fly PG image, tuned for the platform).
-# Backups: snapshots of the pg_data volume (fly volumes snapshots create ...).
-# No HA in this config — single primary. Upgrade by stopping the machine,
-# creating a new one with the next image tag, and restarting.
-app            = "webhook-inspector-db"
-primary_region = "cdg"
-
-[build]
-  image = "flyio/postgres-flex:16"
-
-[env]
-  PRIMARY_REGION = "cdg"
-
-[mounts]
-  source      = "pg_data"
-  destination = "/data"
-
-[[services]]
-  internal_port = 5432
-  protocol      = "tcp"
-
-  [[services.ports]]
-    port = 5432
-
-[[vm]]
-  size   = "shared-cpu-1x"
-  memory = "1gb"
-```
-
-- [ ] **Step 5: Set the Postgres bootstrap secrets**
-
-Generate a strong password:
+**Save the printed password immediately** — Fly only shows it once.
 ```bash
-DB_PASSWORD=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
-echo "Save this: $DB_PASSWORD"
+echo "postgres:<the-password-printed-above>" > ~/.fly-webhook-inspector-credentials.txt
+chmod 600 ~/.fly-webhook-inspector-credentials.txt
 ```
-Then:
-```bash
-fly secrets set \
-  --app webhook-inspector-db \
-  OPERATOR_PASSWORD="$DB_PASSWORD" \
-  SU_PASSWORD="$(openssl rand -base64 24 | tr -d '/+=' | head -c 24)" \
-  REPL_PASSWORD="$(openssl rand -base64 24 | tr -d '/+=' | head -c 24)"
-```
-Expected: "Secrets are staged for the first deployment".
 
-- [ ] **Step 6: Deploy the DB**
-
-Run:
-```bash
-fly deploy --app webhook-inspector-db --config infra/fly/db.fly.toml
-```
-Expected: machine starts, `pg_data` mounted at `/data`, PG ready in ~30s.
-
-- [ ] **Step 7: Verify PG is reachable on the private network**
-
-Open a temporary VPN to Fly's network:
-```bash
-fly wireguard create personal cdg my-laptop > ~/Downloads/wi-wg.conf
-# import into a WireGuard client and activate
-```
-Then:
-```bash
-psql "postgres://postgres:$DB_PASSWORD@webhook-inspector-db.internal:5432/postgres" -c '\l'
-```
-Expected: list of databases including `postgres`.
-
-- [ ] **Step 8: Create the application database and user**
+- [ ] **Step 2: Verify cluster is healthy**
 
 ```bash
-psql "postgres://postgres:$DB_PASSWORD@webhook-inspector-db.internal:5432/postgres" <<SQL
-CREATE USER wi WITH PASSWORD '$DB_PASSWORD';
+fly status --app webhook-inspector-db
+```
+Expected: 1 machine `started`, all 3 health checks green.
+
+- [ ] **Step 3: Tunnel into PG via `fly proxy` (no WireGuard required)**
+
+`fly proxy` opens a local TCP forward through Fly's private mesh — easier than configuring WireGuard on macOS.
+
+In one terminal:
+```bash
+fly proxy 5433:5432 -a webhook-inspector-db
+```
+Leave it running. In another terminal verify the port is open:
+```bash
+nc -z localhost 5433 && echo proxy up
+```
+
+- [ ] **Step 4: Create the application database and user**
+
+Generate a strong password for the app user and create the DB + user:
+```bash
+WI_PASSWORD=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
+echo "wi:$WI_PASSWORD" >> ~/.fly-webhook-inspector-credentials.txt
+
+POSTGRES_PW=$(grep '^postgres:' ~/.fly-webhook-inspector-credentials.txt | cut -d: -f2)
+
+PGPASSWORD="$POSTGRES_PW" psql -h localhost -p 5433 -U postgres -d postgres -v ON_ERROR_STOP=1 <<SQL
+CREATE USER wi WITH PASSWORD '$WI_PASSWORD';
 CREATE DATABASE webhook_inspector OWNER wi;
 GRANT ALL PRIVILEGES ON DATABASE webhook_inspector TO wi;
 SQL
 ```
-Expected: "CREATE ROLE", "CREATE DATABASE", "GRANT".
+Expected: `CREATE ROLE`, `CREATE DATABASE`, `GRANT`.
 
-- [ ] **Step 9: Compose the DATABASE_URL**
-
-The URL the app will use:
+Verify:
+```bash
+PGPASSWORD="$POSTGRES_PW" psql -h localhost -p 5433 -U postgres -d postgres -c "\l" | grep webhook_inspector
 ```
-postgresql+psycopg://wi:$DB_PASSWORD@webhook-inspector-db.flycast:5432/webhook_inspector
-```
-Note: `.flycast` (not `.internal`) gives load-balanced access from other apps in the same org. Save the full URL for the next task.
+Expected: a row showing `webhook_inspector | wi | UTF8 ...`.
 
-- [ ] **Step 10: Commit**
+Stop the proxy (Ctrl+C in the other terminal).
+
+- [ ] **Step 5: The DATABASE_URL to use in B3 / B4**
+
+```
+postgresql+psycopg://wi:<WI_PASSWORD>@webhook-inspector-db.flycast:5432/webhook_inspector
+```
+Use `.flycast` (load-balanced private DNS), not `.internal`. The password is in `~/.fly-webhook-inspector-credentials.txt`.
+
+- [ ] **Step 6: Commit `db.fly.toml`** (still useful as documentation of the provisioning intent)
 
 ```bash
 git add infra/fly/db.fly.toml infra/fly/README.md
