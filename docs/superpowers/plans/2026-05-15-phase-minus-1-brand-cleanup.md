@@ -375,33 +375,27 @@ grep -rln "odessa-inspect" . \
   --exclude-dir=.git \
   --exclude-dir=.venv \
   --exclude-dir=__pycache__ \
-  --exclude-dir=infra/terraform-legacy
+  --exclude-dir=terraform-legacy
 ```
 
-**Allowlist des hits acceptables** (snapshots historiques qui décrivent l'ancien domaine et n'ont pas à être réécrits) :
+> Note : `grep --exclude-dir` matche des **noms de dossiers (basenames)**, pas des chemins. `--exclude-dir=infra/terraform-legacy` est interprété comme un literal et ne filtre rien. On exclut donc `terraform-legacy` (basename — en pratique seul `infra/terraform-legacy/` chez nous porte ce nom).
+
+**Allowlist permanente** (snapshots historiques + meta-documents qui décrivent le rebrand) — doivent toujours apparaître :
 
 - `docs/launch/2026-05-15-launch-plan.md` — décrit l'état actuel `odessa-inspect.org` à migrer
 - `docs/superpowers/plans/2026-05-15-migrate-to-fly-io.md` — plan archive de la migration GCP → Fly
-- `docs/superpowers/plans/2026-05-15-phase-minus-1-brand-cleanup.md` — ce plan documente le rebrand lui-même
+- `docs/superpowers/plans/2026-05-15-phase-minus-1-brand-cleanup.md` — ce plan documente le rebrand
 - `docs/plans/2026-05-13-v2-custom-response-and-observability.md` — plan V2 historique (figé)
 - `docs/plans/2026-05-13-v2.5-ux-product-features.md` — plan V2.5 historique (figé)
-- `docs/specs/2026-05-13-v2-custom-response-and-observability-design.md` — spec V2 (si banner historique choisi en T5)
-- `docs/specs/2026-05-13-v2.5-ux-product-features-design.md` — spec V2.5 (idem)
 
-**Tout autre hit = oubli, retourner à T5 ou T5x pour fixer.**
+**Allowlist conditionnelle** — selon le mode choisi en T5 pour les specs V2/V2.5 :
 
-Concrètement, attendu après `grep -rln "odessa-inspect" .` avec les `--exclude-dir` ci-dessus :
-```
-docs/launch/2026-05-15-launch-plan.md
-docs/superpowers/plans/2026-05-15-migrate-to-fly-io.md
-docs/superpowers/plans/2026-05-15-phase-minus-1-brand-cleanup.md
-docs/plans/2026-05-13-v2-custom-response-and-observability.md
-docs/plans/2026-05-13-v2.5-ux-product-features.md
-docs/specs/2026-05-13-v2-custom-response-and-observability-design.md  (optionnel selon décision T5)
-docs/specs/2026-05-13-v2.5-ux-product-features-design.md  (optionnel selon décision T5)
-```
+- Mode **"rewrite"** (URLs remplacées par hooktrace, L6/139/259/618 + L33 modifiées) → ces fichiers **ne doivent PAS** apparaître dans la sortie grep
+- Mode **"snapshot historique"** (banner ajouté en haut + URLs laissées telles quelles) → ces fichiers **doivent** apparaître
 
-Si SECURITY.md, README.md, CLAUDE.md, landing.html, viewer.html, deploy.yml, bug.yml ou autre fichier de **production** apparaît → fix manqué.
+Si tu vois `docs/specs/2026-05-13-v2-custom-response-and-observability-design.md` dans la sortie alors que tu as fait le rewrite (ou inversement) = state inconsistent, retourne à T5.
+
+**Tout autre fichier dans la sortie** (README.md, SECURITY.md, CLAUDE.md, landing.html, viewer.html, deploy.yml, bug.yml, ou n'importe quel autre fichier de production) = oubli, retourne à T5/T5x pour fixer.
 
 ### Step 2: Final grep — rien en français résiduel
 

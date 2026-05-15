@@ -233,19 +233,24 @@ Mapping ligne par ligne :
 > ```bash
 > grep -rln "odessa-inspect" . \
 >   --exclude-dir=.git --exclude-dir=.venv --exclude-dir=__pycache__ \
->   --exclude-dir=infra/terraform-legacy
+>   --exclude-dir=terraform-legacy
 > ```
-> Résultat attendu : **uniquement** les fichiers dans cette allowlist (snapshots historiques qui décrivent l'ancien domaine et n'ont pas à être rewrités) :
+> Note : `grep --exclude-dir` matche des **noms de dossiers (basenames)**, pas des chemins. `--exclude-dir=infra/terraform-legacy` ne fonctionnerait pas — on utilise `terraform-legacy` qui matche n'importe quel dossier portant ce nom (en pratique seul `infra/terraform-legacy/` chez nous).
 >
-> - `docs/launch/2026-05-15-launch-plan.md` (ce document mentionne odessa-inspect comme état actuel à migrer)
-> - `docs/superpowers/plans/2026-05-15-migrate-to-fly-io.md` (plan de la migration GCP → Fly, archive)
+> Résultat attendu : **uniquement** les fichiers de cette allowlist (snapshots historiques + meta-documents qui décrivent le rebrand) :
+>
+> - `docs/launch/2026-05-15-launch-plan.md` (ce document décrit l'état actuel à migrer)
+> - `docs/superpowers/plans/2026-05-15-migrate-to-fly-io.md` (plan archive de la migration GCP → Fly)
 > - `docs/superpowers/plans/2026-05-15-phase-minus-1-brand-cleanup.md` (ce plan documente le rebrand lui-même)
-> - `docs/plans/2026-05-13-v2-custom-response-and-observability.md` (plan V2 historique)
-> - `docs/plans/2026-05-13-v2.5-ux-product-features.md` (plan V2.5 historique)
-> - `docs/specs/2026-05-13-v2-custom-response-and-observability-design.md` (spec V2 — si tu choisis de garder le rewrite L6/139/259/618 au lieu d'un banner historique)
-> - `docs/specs/2026-05-13-v2.5-ux-product-features-design.md` (spec V2.5 — idem L33)
+> - `docs/plans/2026-05-13-v2-custom-response-and-observability.md` (plan V2 historique, figé)
+> - `docs/plans/2026-05-13-v2.5-ux-product-features.md` (plan V2.5 historique, figé)
 >
-> Tout autre hit = ligne oubliée, retourne fixer.
+> **Cas conditionnel** — les specs V2 et V2.5 :
+>
+> - `docs/specs/2026-05-13-v2-custom-response-and-observability-design.md` et `docs/specs/2026-05-13-v2.5-ux-product-features-design.md` ne doivent apparaître dans la sortie **QUE** si tu as choisi le mode "snapshot historique avec banner" en T5 (cf. plan Phase -1). Si tu as fait le rewrite L6/139/259/618 + L33, ils **NE doivent PAS** apparaître.
+> - Inversement : pas dans la sortie + tu n'as pas mis le banner = état inconsistant, retourner à T5.
+>
+> Tout autre hit (README.md, SECURITY.md, CLAUDE.md, landing.html, viewer.html, deploy.yml, bug.yml, ou autre fichier de production) = oubli, retourner fixer.
 
 ### Checklist — migration identité GitHub
 
