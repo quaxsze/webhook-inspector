@@ -30,11 +30,12 @@
 | Concurrent | Ce qu'ils font | Ce qu'ils ne font pas |
 |---|---|---|
 | **webhook.site** | Capture + view dev/debug, gratuit illimité | Pas de replay, pas de forward, pas de métriques, pas de signature validation built-in, rétention 7j fixe |
-| **Hookdeck / Svix** | Webhook infra production-grade, retry, DLQ, observability | Friction signup + paywall dès J1, pas de use case dev/test, $$$ |
+| **Hookdeck** | Webhook infra production-grade, retry, DLQ, observability. Free tier 5k events/mo + $20/mo entry | Signup obligatoire, pas de URL anonyme zero-friction pour quick test, payant rapidement |
+| **Svix** | Webhook sending/receiving infra. Free tier 50k msg/mo + $25/mo entry | Idem Hookdeck : signup-first, focus émetteur webhook plus que receveur observability |
 | **smee.io / ngrok** | Tunnel localhost → URL publique | Pas de persistence, pas de replay, pas d'observabilité |
 | **RequestBin** | Capture + view (mort/abandonné depuis 2020) | Idem webhook.site mais sans maintenance |
 
-Le **trou de marché** : aucun outil **gratuit, zero-friction, public** ne fait `capture → replay → forward → observabilité avec timeline traces → alerts`. C'est ce trou qu'on occupe.
+Le **trou de marché** : aucun outil ne combine **zero-friction (URL sans signup) + observabilité runtime (HMAC validation, schema inference, OTEL timeline) + replay/forward**. webhook.site couvre la première dimension, Hookdeck/Svix la seconde. On joue le **chevauchement des deux**.
 
 ### Avantage tactique : c'est visuel
 
@@ -70,7 +71,7 @@ Choix : **100% anglais**. Le marché viable est international, "EU-only privacy"
 ### 4. Stratégie OSS
 
 - Repo public dès Phase 0 fin.
-- License : **AGPL-3.0** (pas MIT). Force les hosters concurrents à open-sourcer leurs modifs. C'est ce que font Plausible/Posthog. MIT serait du suicide commercial face à un AWS qui forke.
+- License : **AGPL-3.0** (pas MIT). Force les hosters concurrents à open-sourcer leurs modifs. C'est ce que fait Plausible (Posthog est MIT + commercial license sur certaines features advanced — modèle alternatif viable mais demande de l'effort juridique en plus). MIT pur serait risqué face à un AWS qui forke.
 - Contributor License Agreement (CLA) géré via cla-assistant.io pour préserver la flexibilité de relicensing futur.
 
 ### 5. Co-founder marketing ou solo
@@ -89,14 +90,14 @@ Objectif : avoir un produit qui **mérite** le pitch "observability layer" avant
 - [ ] **Forward** : config par endpoint pour relayer toutes les requests vers une (ou N) URL(s) downstream avec retry exponential + DLQ
 - [ ] **Transform** : règle JSONata par endpoint pour modifier le payload avant forward
 - [ ] **Per-integration view** : grouping auto des requests par source détectée (Stripe, GitHub, Shopify, Twilio, Mailgun, Discord, Slack, PayPal, Zapier, n8n) avec compteurs + p95 latency
-- [ ] **HMAC signature validation built-in** pour les 10 intégrations ci-dessus (config secret par endpoint)
+- [ ] **HMAC signature validation built-in** pour les 9 intégrations HMAC (PayPal en V3.5) ci-dessus (config secret par endpoint)
 - [ ] **Schema inference + diff** : extract JSON schema des requests, surligne les changements
 - [ ] **Timeline view** : OTEL spans visibles dans le viewer (DB write / R2 offload / HMAC check / forward / etc.)
 - [ ] **Rétention 30 jours** (vs 7 actuellement)
 
 ### Anti-abuse + scaling minimum
 
-- [ ] Cloudflare WAF activé sur le domaine (gratuit, déjà chez Cloudflare)
+- [ ] Cloudflare WAF activé sur le domaine. **Le plan gratuit limite à 5 custom rules** — suffisant pour démarrer (bot blocking + rate limit IP de base), mais le plan Pro ($20/mo) débloque les rules avancées (managed rulesets OWASP, rate limit avancé) qui deviendront utiles dès qu'on dépasse 10k MAU. À budgéter Phase 4.
 - [ ] Rate limit par IP : 100 req/min/IP en headline
 - [ ] Rate limit par endpoint : 10 000 req/jour pour les nouveaux endpoints non-authentifiés
 - [ ] Détection heuristique "phishing landing" : si un endpoint reçoit > X requests `GET /` (humans qui cliquent) plutôt que `POST /h/...` (webhooks), flag + freeze
@@ -118,9 +119,11 @@ Objectif : avoir un produit qui **mérite** le pitch "observability layer" avant
 
 - [ ] Partitionner la table `requests` par jour (`requests_2026_05_15`, ...) pour purge sans lock
 - [ ] Index sur `(endpoint_id, received_at DESC)` validé EXPLAIN ANALYZE
-- [ ] Upgrade PG de `shared-cpu-1x` 1GB → `shared-cpu-2x` 4GB (~$30/mo, encaisse 100k req/jour)
+- [ ] Upgrade PG de `shared-cpu-1x` 1GB → `shared-cpu-2x` 4GB. Coût Fly à valider sur pricing page actuelle (estimation ~$25-35/mo, encaisse confortablement 100k req/jour)
 - [ ] Volume 10GB → 50GB
 - [ ] Alerts Honeycomb sur p95 latency + error rate
+
+> Estimation cost total à 100k req/jour : ~$50-70/mo (PG + volume + 3 apps + R2 toujours $0 grâce au free tier + Honeycomb free tier 20M events). **À valider concrètement avec la pricing page Fly à jour avant de figer dans le pitch publique.**
 
 **Investissement temps** : 60-80h de dev + 10h de comm/landing. Réaliste sur 3 semaines solo.
 
@@ -352,12 +355,14 @@ URLs publiques + zéro auth = paradis pour les abuseurs. **Sans ce bloc, ne pas 
 
 ## Free vs Paid tier
 
+> ⚠️ **Tarifs ci-dessous = draft v1, à valider** : (1) via les 5 dernières interviews de Phase 1 (questions explicites de willingness-to-pay sur le scope Pro), (2) en benchmarkant contre Hookdeck ($20-100/mo selon plan), Svix ($25/mo entry), Smee.io (gratuit), Mockoon Cloud ($9/mo). Ne pas figer dans la landing avant validation.
+
 ### Free (everyone, sans signup pour basique)
 
 - ✅ Endpoints illimités
 - ✅ Vanity slugs
 - ✅ 30 jours rétention
-- ✅ HMAC validation built-in (10 services)
+- ✅ HMAC validation built-in (9 services en V3, PayPal en V3.5)
 - ✅ Per-integration view + schema inference
 - ✅ Search + export JSON
 - ✅ Single replay manuel (button on viewer)
@@ -408,7 +413,9 @@ Acter dès **maintenant**, écrit noir sur blanc :
 >
 > Alors je reconnais que le pitch ne prend pas et je redescends webhook-inspector en side-project (1h/semaine max), j'archive le repo Discord/forum, je laisse le service tourner gratuitement tant que les coûts Fly restent <€15/mo, et je passe à autre chose.
 
-Sans cette ligne, le risque est de brûler 3 ans en mode "presque-presque" sans s'en rendre compte. La règle générale : **un dev tool bootstrap qui n'a pas de signal de PMF à 12-18 mois n'en aura pas à 24**.
+> ⚠️ Les seuils ci-dessus (1k / 5k / 0) sont des **estimations au feeling**, pas benchmarkés contre une cohorte de projets comparables. À recalibrer dès qu'on a 1-2 trimestres de données réelles post-launch (pente de stars, pente de MAU). La fonction du kill criteria n'est pas la précision du seuil, c'est l'engagement à arrêter si le signal ne vient pas.
+
+Règle générale qui sous-tend tout ça : **un dev tool bootstrap qui n'a pas de signal de PMF à 12-18 mois n'en aura pas à 24**.
 
 ---
 

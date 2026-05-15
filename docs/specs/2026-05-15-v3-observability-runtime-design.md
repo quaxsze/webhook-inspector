@@ -43,7 +43,7 @@ Pas dans V3 :
 - **Auth / accounts** : V5 territory, voir launch plan. Tout reste anonymous-token-based pour V3.
 - **Multi-target fan-out** : V3 forward = 1 URL cible max. Multi-targets en V4.
 - **Webhook replay batch** (rejouer 100 requests d'un coup) : V3.5.
-- **Custom integrations** au-delà des 10 services built-in : V3.5+.
+- **Custom integrations** au-delà des 9 services HMAC built-in : V3.5+.
 - **Web UI rebuild complet** : on étend l'UI existant, pas un refactor majeur.
 - **Self-hosted multi-tenant** : V3 reste single-tenant, tous les endpoints partagent l'instance.
 - **Métriques custom OTEL utilisateur** : on expose les nôtres, pas une UI de query builder.
@@ -58,20 +58,22 @@ Pas dans V3 :
 
 > En tant que dev qui débug un webhook Stripe, je veux voir directement dans la viewer si la signature `Stripe-Signature` du header est valide pour mon secret, sans devoir écrire mon propre validateur.
 
-#### Périmètre — 10 services au lancement V3
+#### Périmètre — 9 services HMAC au lancement V3 (+ PayPal en V3.5)
 
-| Service | Header | Algo | Secret format |
-|---|---|---|---|
-| Stripe | `Stripe-Signature` | HMAC-SHA256 avec timestamp | `whsec_…` |
-| GitHub | `X-Hub-Signature-256` | HMAC-SHA256 | string libre |
-| Shopify | `X-Shopify-Hmac-Sha256` | HMAC-SHA256 base64 | string libre |
-| Twilio | `X-Twilio-Signature` | HMAC-SHA1 sur URL+params | auth token |
-| Mailgun | `signature` (form param) | HMAC-SHA256 sur timestamp+token | string libre |
-| Discord | `X-Signature-Ed25519` | Ed25519 | public key |
-| Slack | `X-Slack-Signature` | HMAC-SHA256 sur v0:timestamp:body | signing secret |
-| PayPal | `Paypal-Transmission-Sig` | RSA-SHA256 + cert chain | cert URL |
-| Zapier | `X-Hook-Signature` | HMAC-SHA256 | secret hook |
-| n8n | `n8n-signature` (custom) | HMAC-SHA256 | string libre |
+| Service | Header | Algo | Secret format | V3 |
+|---|---|---|---|---|
+| Stripe | `Stripe-Signature` | HMAC-SHA256 avec timestamp | `whsec_…` | ✅ |
+| GitHub | `X-Hub-Signature-256` | HMAC-SHA256 | string libre | ✅ |
+| Shopify | `X-Shopify-Hmac-Sha256` | HMAC-SHA256 base64 | string libre | ✅ |
+| Twilio | `X-Twilio-Signature` | HMAC-SHA1 sur URL+params | auth token | ✅ |
+| Mailgun | `signature` (form param) | HMAC-SHA256 sur timestamp+token | string libre | ✅ |
+| Discord | `X-Signature-Ed25519` | Ed25519 | public key | ✅ |
+| Slack | `X-Slack-Signature` | HMAC-SHA256 sur v0:timestamp:body | signing secret | ✅ |
+| Zapier | `X-Hook-Signature` | HMAC-SHA256 | secret hook | ✅ |
+| n8n | `n8n-signature` (custom) | HMAC-SHA256 | string libre | ✅ |
+| **PayPal** | `Paypal-Transmission-Sig` | **RSA-SHA256 + cert chain** | cert URL + webhook ID | ⏭️ V3.5 |
+
+> ⚠️ PayPal est **matériellement différent** des 9 autres : pas de HMAC symétrique, mais signature RSA + récupération + validation d'une chaîne de certificats Apple-like. Coût d'implémentation ~3× celui d'un HMAC simple (cache de certs, validation chain, gestion expiration). Repoussé en V3.5 — couvre 9 services HMAC d'abord, on ajoute PayPal une fois le pattern stable.
 
 #### Comportement
 
@@ -140,22 +142,33 @@ replayed_at  timestamptz
 
 #### Détection d'intégration
 
-Heuristique à la capture, stockée dans nouveau champ `requests.detected_integration` :
+Heuristique à la capture, stockée dans nouveau champ `requests.detected_integration`. **Priorité = ordre de cette liste** (le premier qui match gagne), avec les services les plus spécifiques en haut pour éviter qu'un proxy générique faussement positif (e.g. un middleware qui forward avec `X-GitHub-Event` ajouté) ne masque la vraie source :
 
 ```python
-def detect_integration(headers: dict, path: str, body_preview: str) -> str | None:
-    if "stripe-signature" in headers: return "stripe"
-    if "x-github-event" in headers: return "github"
-    if "x-shopify-topic" in headers: return "shopify"
-    if "x-twilio-signature" in headers: return "twilio"
-    if "x-mailgun-signature" in headers or "signature" in form_params: return "mailgun"
-    if "x-signature-ed25519" in headers and "x-signature-timestamp" in headers: return "discord"
-    if "x-slack-signature" in headers: return "slack"
-    if "paypal-transmission-sig" in headers: return "paypal"
-    if "x-hook-signature" in headers and "zapier" in user_agent: return "zapier"
-    if "n8n-signature" in headers: return "n8n"
+# Priority order: most specific signature first
+DETECTORS = [
+    ("stripe",  lambda h, ua, p: "stripe-signature" in h),
+    ("github",  lambda h, ua, p: "x-github-event" in h and "x-github-delivery" in h),
+    ("shopify", lambda h, ua, p: "x-shopify-topic" in h and "x-shopify-shop-domain" in h),
+    ("twilio",  lambda h, ua, p: "x-twilio-signature" in h),
+    ("mailgun", lambda h, ua, p: "x-mailgun-signature-v2" in h or ("signature" in p and "timestamp" in p)),
+    ("discord", lambda h, ua, p: "x-signature-ed25519" in h and "x-signature-timestamp" in h),
+    ("slack",   lambda h, ua, p: "x-slack-signature" in h and "x-slack-request-timestamp" in h),
+    ("zapier",  lambda h, ua, p: "x-hook-signature" in h and "zapier" in ua.lower()),
+    ("n8n",     lambda h, ua, p: "x-n8n-signature" in h),
+    # PayPal in V3.5: Paypal-Transmission-Sig + cert chain
+]
+
+def detect_integration(headers: dict, user_agent: str, form_params: dict) -> str | None:
+    for name, predicate in DETECTORS:
+        if predicate(headers, user_agent, form_params):
+            return name
     return None
 ```
+
+**Tie-breaker rule** : si une request match plusieurs détecteurs (rare mais possible), c'est le premier dans `DETECTORS` qui gagne. Documenté.
+
+**Override** : si la config endpoint a un `signature_provider` set, on suppose que l'utilisateur sait ce que c'est et on bypasse la détection auto (le `signature_provider` devient la valeur de `detected_integration`).
 
 #### Sous-types par intégration
 
@@ -225,6 +238,8 @@ Nouvelle colonne `requests.schema_drift` (jsonb null) : si le request introduit 
 
 `genson` génère un schéma cumulatif efficacement en SQL via UPSERT JSONB. Pas besoin de stocker tous les payloads — juste le schéma running.
 
+**Seuil de convergence** : freeze le schéma quand `sample_count >= 10 000`. Au-delà, le schéma a vu suffisamment d'exemples pour avoir convergé ; les itérations marginales coûtent du CPU pour zéro valeur. Si une drift réelle apparaît après freeze, l'admin peut reset le schéma manuellement.
+
 ---
 
 ### F5. Forward avec retry + DLQ
@@ -261,7 +276,11 @@ forward_completed_at timestamptz
 
 #### Worker
 
-Job runner Arq (Redis-backed, async-native, Python-friendly) — déployer comme 3e Fly app `webhook-inspector-worker`.
+Job runner Arq (Redis-backed, async-native, Python-friendly) — déployer comme nouvelle Fly app `webhook-inspector-worker`.
+
+**Redis hosting** : utiliser **Upstash Redis** via Fly (`fly redis create` provisionne une DB Upstash dans la même région). Free tier = 10 000 commands/jour, suffit pour ~1 000 forwards/jour. Au-delà, plan payant Upstash démarre à $0.20/100k commands. À 100k forwards/jour → ~$5-8/mo Redis.
+
+Alternative auto-hébergée : Redis container sur une Fly Machine `shared-cpu-1x` 256MB ~$2/mo + volume 1GB ~$0.15. Plus cheap mais à gérer (snapshots, upgrades). À considérer une fois F5 stabilisé.
 
 #### UI
 
@@ -281,6 +300,8 @@ Job runner Arq (Redis-backed, async-native, Python-friendly) — déployer comme
 - Target URL renvoie 5xx → retry
 - DLQ size unbounded → cap à 1000 dead items/endpoint, oldest evicted
 
+**Storage estimate DLQ** : à 100k forwards/jour × ~3% échec final → ~3k dead items/jour × ~5KB metadata (URL, headers, error, response preview tronqué) = ~15 MB/jour. Avec le cap 1000/endpoint et purge auto à 30j, plafond confortable < 1GB sur le volume PG.
+
 ---
 
 ### F6. Transform (JSONata)
@@ -294,9 +315,16 @@ Job runner Arq (Redis-backed, async-native, Python-friendly) — déployer comme
 **JSONata** ([jsonata.org](https://jsonata.org)). Pourquoi pas un sandbox JS/Python ?
 
 - JSONata est **déclaratif**, déterministe, sans I/O, sans loop infinie → safe par construction
-- Python lib `jsonata-python` mature
 - Syntaxe familière à quiconque a fait du jq ou du XPath
 - Pas de "code execution as a service" = pas de surface attaque massive
+
+> ⚠️ **Choix de lib Python à investiguer avant de figer.** Les options pour exécuter JSONata depuis Python :
+> 1. `jsonata-python` (PyPI) — maintenance intermittente, dernière release datant. À vérifier que les fonctions critiques marchent.
+> 2. `pyjsonata` — alternative, moins connue.
+> 3. Wrapper subprocess sur la lib JS officielle (Node) — fiable mais ajoute Node comme dépendance runtime.
+> 4. Implémenter un **subset déclaratif maison** couvrant les 80% cas concrets (path access, rename, filter, basic arithmetic) — ~500 lignes Python, contrôle total, pas de dette tiers. Recommandé si le scope reste petit.
+>
+> Décision : tester (1) et (2) sur les use cases du spec en sprint 4 ouverture, si bloquant → fallback subset maison.
 
 Exemple :
 ```
@@ -370,7 +398,17 @@ Sur la page detail request : nouvelle section "Timeline" avec diagramme horizont
 
 ## Modèle de données
 
-Migrations Alembic à ajouter en V3 (nouvelle 0004) :
+Migrations Alembic à ajouter en V3 (nouvelle 0004).
+
+**Prérequis à vérifier** avant d'écrire la migration : confirmer dans le schéma V2.5 actuel que (1) la colonne `requests.endpoint_id` existe et est NOT NULL, (2) la contrainte `endpoints.id` est bien `uuid PRIMARY KEY`. Si différence, ajuster les FK ci-dessous.
+
+**Interaction avec V2.5 search vector** : la V2.5 a ajouté un index GIN sur `tsvector(method || path || body_preview)`. Pour que la recherche prenne en compte les nouvelles colonnes :
+
+- Ajouter `signature_status` et `detected_integration` à la concat tsvector → permet des queries `?q=invalid signature` ou `?q=stripe`
+- Reconstruire l'index GIN après la migration (CONCURRENTLY pour éviter le lock)
+- Le coût d'écriture du vector reste négligeable (~5-10 µs/row)
+
+Migrations :
 
 ```sql
 -- F1
@@ -502,7 +540,22 @@ Refuser les `target_url` qui :
 - Résolvent vers private ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `127.0.0.0/8`, `169.254.0.0/16`, fc00::/7, fe80::/10, etc.)
 - Domaine = `*.hooktrace.io` (anti-amplification)
 - Protocole != `https://` ou `http://` (refuse `file://`, `ftp://`)
-- DNS resolution chemin TOCTOU : résoudre une fois, fixer l'IP, faire le call sur l'IP avec Host header — bypass DNS rebinding
+
+**DNS rebinding mitigation** : implémentation non-triviale avec `httpx` qui ne supporte pas l'override d'IP nativement. Approche concrète :
+
+```python
+# Resolve once, pass IP + Host header
+import socket
+ip = socket.gethostbyname(parsed.hostname)
+assert_not_private_range(ip)
+url_with_ip = parsed._replace(netloc=ip).geturl()
+async with httpx.AsyncClient(verify=True) as client:
+    await client.post(url_with_ip, headers={"Host": parsed.hostname, ...}, ...)
+```
+
+Coût : ~50 lignes utilitaire + tests dédiés (private ranges, IPv6, DNS rebinding canary). À budgéter une demi-journée par feature qui sort de l'app (F2 replay + F5 forward).
+
+Lib alternative : `httpx-socks` ou `httpx-cache` n'aident pas. La meilleure ressource publique : [`requests-ip-rotator`](https://github.com/Ge0rg3/requests-IP-Rotator) pour le pattern, à adapter en async.
 
 ### Rate limiting
 
@@ -523,21 +576,23 @@ Priorisé par effort + impact pitch :
 6. **F5 Forward + retry + DLQ** (sprint 3, 1.5 semaines) — feature paid tier la plus importante
 7. **F6 Transform** (sprint 4, 1 semaine) — paid tier, complète F5
 
-Total estimé : **5-6 semaines solo full-time**. En side-project : 3-4 mois.
+**Effort total (somme dev) : 7 semaines.** Avec buffer review/bug/intégration réaliste : **8-9 semaines solo full-time**, soit ~3-4 mois en side-project (10-15h/sem).
 
 ### Définition de "fait" par feature
+
+(Les conventions repo standard — pre-commit / ruff / mypy / pytest — sont assumées et ne sont pas re-listées par feature.)
 
 - Tests unitaires + integration (testcontainers Postgres)
 - E2E test minimum : capture → trigger feature → verify result
 - Documentation user (`docs/integrations/` pour F1, par feature pour F2-F7)
-- Pre-commit + ruff + mypy + pytest tous verts
-- Pas de breaking change sur l'API publique existante
+- Pas de breaking change sur l'API publique existante (V2.5 `/api/endpoints/{token}/requests` reste stable)
 
 ---
 
 ## Out of scope (V3.5 / V4)
 
 - **Multi-target forward** : V3 = 1 URL cible. Multi-targets + fan-out = V4 (probablement avec Apache Kafka ou NATS si volume justifie)
+- **PayPal HMAC RSA + cert chain** : reporté en V3.5 (cf. note dans F1)
 - **Custom integrations** : ajouter Calendly, HubSpot, Salesforce, etc. → V3.5 si signal user (≥3 demandes par intégration)
 - **Bulk replay** : "rejoue toutes les requests des 24 dernières heures" → V3.5
 - **Schema validation strict** : passer du diff au "reject if drift" → V4 (territoire team tier)
