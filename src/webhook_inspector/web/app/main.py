@@ -27,6 +27,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         settings.service_name + "-app",
         settings.environment,
         cloud_trace_enabled=settings.cloud_trace_enabled,
+        otlp_endpoint=settings.otlp_endpoint,
+        otlp_headers=settings.otlp_headers,
         sample_ratio=settings.trace_sample_ratio,
     )
     configure_metrics(
