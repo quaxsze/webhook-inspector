@@ -27,6 +27,8 @@ def _build_tracer_provider(
             "deployment.environment": environment,
         }
     )
+    # 10% sampling stays well under Cloud Trace's 2.5M spans/month free tier
+    # even at 10x current traffic. Set TRACE_SAMPLE_RATIO=1.0 in dev for full traces.
     provider = TracerProvider(resource=resource, sampler=TraceIdRatioBased(sample_ratio))
 
     if otlp_endpoint:
@@ -37,7 +39,7 @@ def _build_tracer_provider(
         provider.add_span_processor(
             BatchSpanProcessor(
                 OTLPSpanExporter(
-                    endpoint=f"{otlp_endpoint}/v1/traces",
+                    endpoint=f"{otlp_endpoint.rstrip('/')}/v1/traces",
                     headers=_parse_headers(otlp_headers),
                 )
             )
@@ -47,6 +49,8 @@ def _build_tracer_provider(
 
         provider.add_span_processor(BatchSpanProcessor(CloudTraceSpanExporter()))  # type: ignore[no-untyped-call]
     else:
+        # SimpleSpanProcessor for console: synchronous, no daemon thread.
+        # Avoids stdout-already-closed errors when pytest exits.
         provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 
     return provider
