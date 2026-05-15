@@ -164,34 +164,57 @@ Acter explicitement avant Phase 2. Sans co-founder distribution, viser un object
 
 Prérequis **avant** de toucher au produit. La comm interne du repo est aujourd'hui incohérente — l'arch diagram du README parle encore de Cloud Run / Cloud Trace, la landing est en anglais mais le viewer en `lang="fr"`, le branding mélange `webhook-inspector` (code), `odessa-inspect` (URLs dans tout le repo), et `hooktrace` (cible). Avant tout marketing externe, on aligne.
 
-### Checklist — remplacement systématique `odessa-inspect.org` → `hooktrace.io`
+### Checklist — remplacement systématique odessa-inspect.org → hooktrace.io
 
-À faire **après l'achat du domaine** (décision 1) et **avant Phase 0** :
+À faire **après l'achat du domaine** (décision 1) et **avant Phase 0**.
+
+> **Règle de substitution** : le mapping n'est PAS uniforme. Trois cibles distinctes selon le contexte d'usage :
+>
+> - **`app.hooktrace.io`** — surface app : viewer HTML, routes API `/api/endpoints/*`, OG metadata, liens depuis README/docs vers l'app
+> - **`hook.hooktrace.io`** — surface ingestor : URLs de webhook `/h/{token}` retournées aux utilisateurs, exemples curl qui simulent un sender
+> - **`hooktrace.io`** (apex) — uniquement en prose marketing/brand ("hosted by hooktrace.io", "open-source at hooktrace.io"). Jamais dans une URL fonctionnelle, l'apex est un 301 vers `app.`
+>
+> Réécrire un curl webhook `https://app.odessa-inspect.org/h/...` (le `/h/` indique surface ingestor) doit donc devenir `https://hook.hooktrace.io/h/...`, **pas** `https://app.hooktrace.io/h/...`.
+
+Mapping ligne par ligne :
 
 - [ ] **README.md** :
-  - Lignes 118-119 (`Live URLs` : `app.odessa-inspect.org` / `hook.odessa-inspect.org`) → `hooktrace.io`
-  - Lignes 132, 155, 170, 185 (exemples `curl` dans la doc) → idem
+  - Ligne 118 : `App: https://app.odessa-inspect.org` → `App: https://app.hooktrace.io` (surface app)
+  - Ligne 119 : `Ingestor (webhook target): https://hook.odessa-inspect.org` → `Ingestor (webhook target): https://hook.hooktrace.io` (surface ingestor)
+  - Ligne 132 : `curl -X POST https://app.odessa-inspect.org/api/endpoints` → `app.hooktrace.io` (API surface app)
+  - Ligne 155 : `curl -X POST https://app.odessa-inspect.org/api/endpoints` → `app.hooktrace.io` (idem)
+  - Ligne 170 : `curl "https://app.odessa-inspect.org/api/endpoints/$TOKEN/requests?q=..."` → `app.hooktrace.io` (API surface app)
+  - Ligne 185 : `curl -OJ "https://app.odessa-inspect.org/api/endpoints/$TOKEN/export.json"` → `app.hooktrace.io` (API surface app)
   - Redessiner l'architecture diagram (haut du fichier) pour refléter Fly + R2 + OTLP. Garder la mention historique Cloud Run uniquement sous la roadmap V2.6.
   - Statut badges (lignes 3-4) : pointer vers le nouveau repo si transfert (cf. tâche GitHub ci-dessous)
   - Ligne 236 : lien GitHub Security Advisories → nouveau repo si transfert
 
 - [ ] **src/webhook_inspector/web/app/templates/landing.html** :
-  - Ligne 6 : `<title>webhook-inspector...</title>` → `<title>hooktrace — ...</title>`
-  - Ligne 10 : `og:title content="webhook-inspector"` → `hooktrace`
-  - Ligne 13 : `og:url` → `https://app.hooktrace.io/` (URL canonical de l'app — l'apex `hooktrace.io` 301-redirect vers cette URL, cf. décision 2 topologie)
-  - Ligne 23 : `<h1>webhook-inspector</h1>` → `<h1>hooktrace</h1>`
-  - Lignes 140, 144 : exemples `hook.odessa-inspect.org/h/...` → `hook.hooktrace.io/h/...`
+  - Ligne 6 : `<title>webhook-inspector — ...</title>` → `<title>hooktrace — ...</title>` (brand, pas d'URL)
+  - Ligne 10 : `og:title content="webhook-inspector"` → `hooktrace` (brand)
+  - Ligne 13 : `og:url content="..."` → `https://app.hooktrace.io/` (URL canonical de l'app — l'apex 301-redirect vers cette URL)
+  - Ligne 23 : `<h1>webhook-inspector</h1>` → `<h1>hooktrace</h1>` (brand)
+  - Ligne 140 : exemple `https://hook.odessa-inspect.org/h/AbCdEf...` → `https://hook.hooktrace.io/h/AbCdEf...` (surface ingestor — c'est une URL de webhook)
+  - Ligne 144 : idem ligne 140
   - Ligne 152 : lien `github.com/quaxsze/webhook-inspector` → nouveau repo si transfert
 
-- [ ] **src/webhook_inspector/web/app/templates/viewer.html** : passer `lang="fr"` → `lang="en"`, traduire les 3-4 strings statiques restantes, harmoniser le H1 sur `hooktrace`
+- [ ] **src/webhook_inspector/web/app/templates/viewer.html** : passer `lang="fr"` → `lang="en"`, traduire les 3-4 strings statiques restantes, harmoniser le H1 sur `hooktrace` (brand, pas d'URL)
 
-- [ ] **docs/specs/2026-05-13-v2-custom-response-and-observability-design.md** : remplacer 4 occurrences `odessa-inspect.org` (lignes 6, 139, 259, 618). Si c'est de l'historique, ajouter en haut un banner "snapshot V2 — domaine actuel = hooktrace.io" plutôt que rewrite
+- [ ] **docs/specs/2026-05-13-v2-custom-response-and-observability-design.md** :
+  - Ligne 6 : `https://app.odessa-inspect.org` (prose de contexte) → `https://app.hooktrace.io` (surface app)
+  - Ligne 139 : `"url": "https://hook.odessa-inspect.org/h/abc..."` (exemple payload API) → `https://hook.hooktrace.io/h/abc...` (surface ingestor — c'est une URL de webhook retournée à l'utilisateur)
+  - Ligne 259 : `data-url — full ingestor URL (e.g. https://hook.odessa-inspect.org/h/abc...)` → `hook.hooktrace.io` (surface ingestor)
+  - Ligne 618 : `Custom response works end-to-end on https://app.odessa-inspect.org` → `app.hooktrace.io` (surface app)
+  - Si tu juges cette doc historique (V2 design figé), tu peux à la place ajouter en haut un banner "snapshot V2 — domaine actuel = hooktrace.io (app./hook. subdomains)" et laisser les URLs telles quelles. Décision à toi.
 
-- [ ] **docs/specs/2026-05-13-v2.5-ux-product-features-design.md** : ligne 33 user story → `hook.hooktrace.io`
+- [ ] **docs/specs/2026-05-13-v2.5-ux-product-features-design.md** :
+  - Ligne 33 : `hook.odessa-inspect.org/h/stripe-test` et `hook.odessa-inspect.org/h/k7Hq3...` → `hook.hooktrace.io` (surface ingestor — user story d'URL webhook)
 
 - [ ] **docs/specs/2026-05-11-webhook-inspector-design.md** : banner historique "design originel — voir docs/launch/ pour le pivot V3"
 
 - [ ] **CONTRIBUTING.md** : vérifier que les conventions matchent l'état réel (uv, Fly, etc.)
+
+> **Vérification post-rebrand** : lancer `grep -rn "odessa-inspect" .` à la fin doit retourner uniquement les fichiers archivés dans `infra/terraform-legacy/` et les commits historiques git log. Tout autre hit = ligne oubliée.
 
 ### Checklist — migration identité GitHub
 
