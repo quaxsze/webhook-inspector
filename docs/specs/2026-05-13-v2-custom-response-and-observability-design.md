@@ -3,7 +3,7 @@
 **Date** : 2026-05-13
 **Author** : Stanislas Plum
 **Status** : Validated — ready for implementation plan
-**Prior phases** : V1 (Phases A → C) live in production at https://app.odessa-inspect.org
+**Prior phases** : V1 (Phases A → C) live in production at https://app.hooktrace.io
 
 ## Context
 
@@ -136,7 +136,7 @@ Echoed back so the user can confirm what was saved :
 
 ```json
 {
-  "url": "https://hook.odessa-inspect.org/h/abc...",
+  "url": "https://hook.hooktrace.io/h/abc...",
   "token": "abc...",
   "expires_at": "2026-05-20T...",
   "response": {
@@ -256,7 +256,7 @@ The SSE fragment template `request_fragment.html` adds a button :
 A single JS event listener (event delegation on `<ul id="requests">`) handles all current and future `.copy-curl-btn` clicks. Each `<li>` carries the data via these attributes :
 
 - `data-method` — uppercase HTTP verb
-- `data-url` — full ingestor URL (e.g. `https://hook.odessa-inspect.org/h/abc...`)
+- `data-url` — full ingestor URL (e.g. `https://hook.hooktrace.io/h/abc...`)
 - `data-headers` — JSON-encoded `{header: value}` map (via `tojson` Jinja filter)
 - `data-body` — JSON-encoded body preview string, or empty string when offloaded
 
@@ -615,7 +615,7 @@ After V2 ships :
 - [ ] All 23 new tests pass locally and in CI
 - [ ] `make lint`, `make type`, `make test` all green
 - [ ] Migration applies cleanly (verified locally + on dev via CI/CD)
-- [ ] Custom response works end-to-end on `https://app.odessa-inspect.org` : create endpoint with custom config, send webhook, observe custom response received
+- [ ] Custom response works end-to-end on `https://app.hooktrace.io` : create endpoint with custom config, send webhook, observe custom response received
 - [ ] Copy-as-curl button copies a valid curl command (manual test from browser, paste and run, command succeeds)
 - [ ] Dashboard renders all 12 tiles with data after 10 min of traffic generation
 - [ ] At least one alert successfully fires during a manual drill ; email received

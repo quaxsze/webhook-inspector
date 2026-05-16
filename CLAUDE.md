@@ -45,8 +45,8 @@ This file is loaded automatically by Claude Code when working in this repo. It d
 
 ## Domain / DNS
 
-- Production domain: `odessa-inspect.org`, hosted via Cloudflare Registrar.
-- Two CNAMEs : `app.odessa-inspect.org → webhook-inspector-web.fly.dev`, `hook.odessa-inspect.org → webhook-inspector-ingestor.fly.dev`. Both in **DNS-only mode** (gray cloud), `proxied = false`. TLS is Let's Encrypt managed by Fly.
+- Production domain: `hooktrace.io`, hosted via Cloudflare Registrar.
+- Two CNAMEs : `app.hooktrace.io → webhook-inspector-web.fly.dev`, `hook.hooktrace.io → webhook-inspector-ingestor.fly.dev`. Both in **DNS-only mode** (gray cloud), `proxied = false`. TLS is Let's Encrypt managed by Fly.
 - The web app derives the hook URL from its own host header (`web/app/routes.py:hook_base_url()`), rewriting `app.` → `hook.` — so the web service **must** stay on `app.<domain>`.
 
 ## Observability

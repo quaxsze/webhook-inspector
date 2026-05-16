@@ -6,7 +6,7 @@ If you discover a security vulnerability in webhook-inspector, please report it 
 
 ### Preferred channel
 
-Open a [private security advisory](https://github.com/quaxsze/webhook-inspector/security/advisories/new) directly on GitHub. This keeps the report confidential and lets us collaborate on a fix before public disclosure.
+Open a [private security advisory](https://github.com/hooktrace-io/hooktrace/security/advisories/new) directly on GitHub. This keeps the report confidential and lets us collaborate on a fix before public disclosure.
 
 ### What to include
 
@@ -22,8 +22,8 @@ This is a side-project maintained by a single person. Best-effort response withi
 
 ### Out of scope
 
-- Reports against the public live instance at `app.odessa-inspect.org` involving denial of service (the instance runs on minimal compute by design)
-- Issues already documented in the [roadmap](README.md#roadmap) as known gaps (rate limiting, WAF — planned for V4)
+- Reports against the public live instance at `app.hooktrace.io` involving denial of service (the instance runs on minimal compute by design)
+- Issues already addressed by the launch hardening (rate limiting + Cloudflare WAF in place since V3 public launch)
 - Best-practice recommendations without an exploitable scenario
 
 ### Supported versions
