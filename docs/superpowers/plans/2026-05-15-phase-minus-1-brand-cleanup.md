@@ -459,8 +459,6 @@ grep -rln "odessa-inspect" . \
 - `docs/launch/2026-05-15-launch-plan.md` — décrit l'état actuel `odessa-inspect.org` à migrer
 - `docs/superpowers/plans/2026-05-15-migrate-to-fly-io.md` — plan archive de la migration GCP → Fly
 - `docs/superpowers/plans/2026-05-15-phase-minus-1-brand-cleanup.md` — ce plan documente le rebrand
-- `docs/plans/2026-05-13-v2-custom-response-and-observability.md` — plan V2 historique (figé)
-- `docs/plans/2026-05-13-v2.5-ux-product-features.md` — plan V2.5 historique (figé)
 
 **Allowlist conditionnelle** — selon le mode choisi en T5 pour les specs V2/V2.5 :
 

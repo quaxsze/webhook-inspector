@@ -242,8 +242,6 @@ Mapping ligne par ligne :
 > - `docs/launch/2026-05-15-launch-plan.md` (ce document décrit l'état actuel à migrer)
 > - `docs/superpowers/plans/2026-05-15-migrate-to-fly-io.md` (plan archive de la migration GCP → Fly)
 > - `docs/superpowers/plans/2026-05-15-phase-minus-1-brand-cleanup.md` (ce plan documente le rebrand lui-même)
-> - `docs/plans/2026-05-13-v2-custom-response-and-observability.md` (plan V2 historique, figé)
-> - `docs/plans/2026-05-13-v2.5-ux-product-features.md` (plan V2.5 historique, figé)
 >
 > **Cas conditionnel** — les specs V2 et V2.5 :
 >
