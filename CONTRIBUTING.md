@@ -16,8 +16,8 @@ Requires:
 - Docker + docker-compose (for running the stack locally)
 
 ```bash
-git clone https://github.com/quaxsze/webhook-inspector.git
-cd webhook-inspector
+git clone https://github.com/hooktrace-io/hooktrace.git
+cd hooktrace
 uv sync
 uv run pre-commit install   # one-time, sets up git hooks
 make up                      # starts the full stack on docker-compose
@@ -97,4 +97,4 @@ These rules can't be enforced from the repo — they live in GitHub's repo setti
 
 ## Questions
 
-Open a [discussion](https://github.com/quaxsze/webhook-inspector/discussions) or an issue tagged `question`.
+Open a [discussion](https://github.com/hooktrace-io/hooktrace/discussions) or an issue tagged `question`.

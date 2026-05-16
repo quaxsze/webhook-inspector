@@ -1,5 +1,9 @@
 # Webhook Inspector — Design Document
 
+> **Historical note (2026-05-16)** : Ce document décrit le design originel V1.
+> Voir `docs/launch/2026-05-15-launch-plan.md` pour le pivot V3 observability.
+> Domaine actuel = `hooktrace.io` (subdomains `app.` + `hook.`), pas `odessa-inspect.org`.
+
 **Date** : 2026-05-11
 **Auteur** : Stanislas Plum
 **Statut** : Validé — prêt pour planification implémentation

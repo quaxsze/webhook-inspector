@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>webhook-inspector — Generate a URL, inspect any webhook live</title>
+  <title>hooktrace — Webhook observability with capture, debug, replay</title>
   <meta name="description" content="Free webhook inspection: generate a URL, point any webhook at it, see requests in real-time. No signup, URLs expire after 7 days.">
 
   <!-- Open Graph / social sharing -->
-  <meta property="og:title" content="webhook-inspector">
+  <meta property="og:title" content="hooktrace">
   <meta property="og:description" content="Generate a URL, point any webhook at it, see requests live in your browser. Free, no signup.">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://app.odessa-inspect.org/">
+  <meta property="og:url" content="https://app.hooktrace.io/">
 
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -20,7 +20,7 @@
   <main class="max-w-2xl mx-auto px-6 py-16">
 
     <header class="mb-12">
-      <h1 class="text-3xl font-bold text-emerald-400 mb-3">webhook-inspector</h1>
+      <h1 class="text-3xl font-bold text-emerald-400 mb-3">hooktrace</h1>
       <p class="text-slate-300 text-lg leading-relaxed">
         Generate a URL, point any webhook at it,<br>
         inspect the requests live in your browser.
@@ -137,19 +137,19 @@
     <section class="mb-12 bg-slate-800 rounded p-4 text-sm">
       <h2 class="text-slate-400 text-xs uppercase tracking-wider mb-2">Quick example</h2>
       <pre class="text-slate-300 overflow-x-auto"><code># 1. Click the button above. You get a URL like:
-#    https://hook.odessa-inspect.org/h/AbCdEf...
+#    https://hook.hooktrace.io/h/AbCdEf...
 
 # 2. Use that URL anywhere webhooks are sent. Or curl it:
 curl -X POST -d '{"hello":"world"}' \
-  https://hook.odessa-inspect.org/h/AbCdEf...
+  https://hook.hooktrace.io/h/AbCdEf...
 
 # 3. The browser tab shows the request, live.</code></pre>
     </section>
 
     <footer class="text-slate-500 text-xs border-t border-slate-700 pt-4">
       <p>
-        Built with FastAPI + Cloud Run +
-        <a href="https://github.com/quaxsze/webhook-inspector" class="text-emerald-400 hover:underline">open source</a>.
+        Built with FastAPI + Fly.io +
+        <a href="https://github.com/hooktrace-io/hooktrace" class="text-emerald-400 hover:underline">open source</a>.
       </p>
     </footer>
 
