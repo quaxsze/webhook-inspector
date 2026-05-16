@@ -162,6 +162,8 @@ Acter explicitement avant Phase 2. Sans co-founder distribution, viser un object
 
 ## Phase -1 — Brand & docs consistency (1 semaine)
 
+> ✅ **DONE** — exécutée 2026-05-16. Cf. `docs/superpowers/plans/2026-05-15-phase-minus-1-brand-cleanup.md` pour le détail. Domaine `hooktrace.io` live (apex 301 + `app.` + `hook.`), `odessa-inspect.org` CNAMEs supprimés + certs Fly révoqués, rebrand massif déployé en prod, viewer i18n FR→EN, repo transféré sur `hooktrace-io/hooktrace`.
+
 Prérequis **avant** de toucher au produit. La comm interne du repo est aujourd'hui incohérente — l'arch diagram du README parle encore de Cloud Run / Cloud Trace, la landing est en anglais mais le viewer en `lang="fr"`, le branding mélange `webhook-inspector` (code), `odessa-inspect` (URLs dans tout le repo), et `hooktrace` (cible). Avant tout marketing externe, on aligne.
 
 ### Checklist — remplacement systématique odessa-inspect.org → hooktrace.io
