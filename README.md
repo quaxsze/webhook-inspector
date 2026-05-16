@@ -67,8 +67,6 @@ The data flow on a webhook capture:
 6. Each open `/stream/{token}` connection that matches receives an HTML fragment over Server-Sent Events
 7. HTMX in the browser inserts the fragment at the top of the live list
 
-See spec at `docs/specs/2026-05-11-webhook-inspector-design.md`.
-
 ## Quick start (local)
 
 Requires Docker + docker-compose.
@@ -222,14 +220,14 @@ Response format:
 | V1 | ✅ Live | MVP : 5 endpoints + live viewer + Cloud Run + WIF CI/CD + custom domain + Cloud Trace |
 | V2 | ✅ Live | Custom response (status/body/headers/delay) + copy-as-curl + custom OTEL metrics + Cloud Monitoring dashboards + alerting |
 | V2.5 | ✅ Live | **UX produit** — vanity URL slug + search/filter (Postgres `tsvector` + GIN index) + export captured requests as JSON |
-| V2.6 | ✅ Live | **Migration cloud** — GCP (Cloud Run + Cloud SQL + GCS + Cloud Trace) → Fly.io (Machines + self-managed Postgres + Cloudflare R2) + OTLP traces. See `docs/superpowers/plans/2026-05-15-migrate-to-fly-io.md`. |
+| V2.6 | ✅ Live | **Migration cloud** — GCP (Cloud Run + Cloud SQL + GCS + Cloud Trace) → Fly.io (Machines + self-managed Postgres + Cloudflare R2) + OTLP traces. |
 | V3 | 🟡 Planned | **Observability pivot** — HMAC validation (9 services) + per-integration view + schema drift + replay + OTEL timeline + forward to 1 target URL (Pro) with retry + DLQ |
 | V4 | 🟡 Planned | **Production hardening** — multi-region read replicas + HA Postgres pair + formal SLOs + transform JSONata (Pro) + multi-target fan-out (Team) |
 | V5 | 🟡 Planned | **Auth + power user** — Google OAuth + claimed URLs + activity log per-account + statistics charts + API tokens + (optional) DNSBL lookup |
 | V6 | 🟡 Planned | Formal SLOs + error budgets + status page publique + first real postmortem |
 | V7+ | 🟡 Future | WebSocket inspection (new protocol dimension) + SMTP/email capture (new service infra) — explored as desire dictates |
 
-See [`docs/specs/`](docs/specs/) for design rationale per phase.
+See [`docs/specs/`](docs/specs/) for design rationale for upcoming phases.
 
 ## Contributing
 

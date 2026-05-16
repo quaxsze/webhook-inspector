@@ -71,4 +71,4 @@ This file is loaded automatically by Claude Code when working in this repo. It d
 
 ## Roadmap
 
-See README. Current state: **V2.6** — migrated from GCP Cloud Run + Cloud SQL to Fly.io + self-managed Postgres + Cloudflare R2 (2026-05). See `docs/superpowers/plans/2026-05-15-migrate-to-fly-io.md` for the full migration story.
+See README. Current state: **V2.6** — migrated from GCP Cloud Run + Cloud SQL to Fly.io + self-managed Postgres + Cloudflare R2 (2026-05). Phase -1 (brand cleanup `odessa-inspect.org` → `hooktrace.io`) done 2026-05-16. Next: V3 observability pivot.
