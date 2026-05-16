@@ -5,7 +5,7 @@
 > looked. **Do not run `tofu apply` from here** — the corresponding GCP
 > resources have all been destroyed and the state bucket is unused.
 >
-> Current infra : `infra/fly/`. See `docs/superpowers/plans/2026-05-15-migrate-to-fly-io.md` for the full migration story.
+> Current infra : `infra/fly/`.
 
 ---
 
