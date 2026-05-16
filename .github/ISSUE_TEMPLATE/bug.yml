@@ -48,7 +48,7 @@ body:
       label: Where did you observe the bug?
       options:
         - Local docker-compose
-        - Live instance (app.odessa-inspect.org)
+        - Live instance (app.hooktrace.io)
         - CI/CD pipeline
         - Other
     validations:

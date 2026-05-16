@@ -1,7 +1,8 @@
 from collections.abc import AsyncIterator
 from functools import lru_cache
 
-from fastapi import Depends
+from fastapi import Depends, Request
+from opentelemetry.metrics import Meter
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -10,8 +11,10 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from webhook_inspector.application.use_cases.create_endpoint import CreateEndpoint
+from webhook_inspector.application.use_cases.export_requests import ExportRequests
 from webhook_inspector.application.use_cases.list_requests import ListRequests
 from webhook_inspector.config import Settings
+from webhook_inspector.domain.ports.metrics_collector import MetricsCollector
 from webhook_inspector.infrastructure.notifications.postgres_notifier import PostgresNotifier
 from webhook_inspector.infrastructure.repositories.endpoint_repository import (
     PostgresEndpointRepository,
@@ -19,6 +22,7 @@ from webhook_inspector.infrastructure.repositories.endpoint_repository import (
 from webhook_inspector.infrastructure.repositories.request_repository import (
     PostgresRequestRepository,
 )
+from webhook_inspector.infrastructure.storage.factory import make_blob_storage
 
 
 @lru_cache(maxsize=1)
@@ -48,17 +52,25 @@ async def get_session() -> AsyncIterator[AsyncSession]:
             raise
 
 
-_notifier: PostgresNotifier | None = None
+@lru_cache(maxsize=1)
+def _meter() -> Meter:
+    import opentelemetry.metrics as otel_metrics
+
+    return otel_metrics.get_meter("webhook-inspector-app")
 
 
-async def get_notifier() -> PostgresNotifier:
-    global _notifier
-    if _notifier is None:
-        settings = get_settings()
-        sync_dsn = settings.database_url.replace("+psycopg_async", "").replace("+psycopg", "")
-        _notifier = PostgresNotifier(dsn=sync_dsn)
-        await _notifier.start()
-    return _notifier
+@lru_cache(maxsize=1)
+def get_metrics() -> MetricsCollector:
+    from webhook_inspector.infrastructure.observability.otel_metrics_collector import (
+        OtelMetricsCollector,
+    )
+
+    return OtelMetricsCollector(_meter())
+
+
+async def get_notifier(request: Request) -> PostgresNotifier:
+    """Return the PostgresNotifier stored on app.state by the lifespan."""
+    return request.app.state.notifier  # type: ignore[no-any-return]
 
 
 async def get_create_endpoint(
@@ -68,6 +80,7 @@ async def get_create_endpoint(
     return CreateEndpoint(
         repo=PostgresEndpointRepository(session),
         ttl_days=settings.endpoint_ttl_days,
+        metrics=get_metrics(),
     )
 
 
@@ -77,4 +90,16 @@ async def get_list_requests(
     return ListRequests(
         endpoint_repo=PostgresEndpointRepository(session),
         request_repo=PostgresRequestRepository(session),
+    )
+
+
+async def get_export_requests(
+    session: AsyncSession = Depends(get_session),  # noqa: B008
+    settings: Settings = Depends(get_settings),  # noqa: B008
+) -> ExportRequests:
+    return ExportRequests(
+        endpoint_repo=PostgresEndpointRepository(session),
+        request_repo=PostgresRequestRepository(session),
+        blob_storage=make_blob_storage(settings),
+        max_requests=settings.export_max_requests,
     )

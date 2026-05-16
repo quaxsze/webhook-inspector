@@ -1,8 +1,8 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Column
-from sqlalchemy.dialects.postgresql import INET, JSONB
+from sqlalchemy import Column, Computed
+from sqlalchemy.dialects.postgresql import INET, JSONB, TSVECTOR
 from sqlmodel import Field, SQLModel
 
 
@@ -14,6 +14,15 @@ class EndpointTable(SQLModel, table=True):
     created_at: datetime = Field(nullable=False)
     expires_at: datetime = Field(nullable=False, index=True)
     request_count: int = Field(default=0, nullable=False)
+
+    # V2 — custom response
+    response_status_code: int = Field(default=200, nullable=False)
+    response_body: str = Field(default='{"ok":true}', nullable=False)
+    response_headers: dict[str, str] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+    )
+    response_delay_ms: int = Field(default=0, nullable=False)
 
 
 class RequestTable(SQLModel, table=True):
@@ -30,3 +39,24 @@ class RequestTable(SQLModel, table=True):
     blob_key: str | None = Field(default=None)
     source_ip: str = Field(sa_column=Column(INET, nullable=False))
     received_at: datetime = Field(nullable=False)
+
+    # V2.5 — generated tsvector column for full-text search. Mirrors the
+    # GENERATED ALWAYS expression in migration 0003 so SQLAlchemy:
+    #   - never tries to INSERT/UPDATE this column (Computed handles it),
+    #   - can recreate the column in tests via SQLModel.metadata.create_all().
+    search_vector: str | None = Field(
+        default=None,
+        sa_column=Column(
+            "search_vector",
+            TSVECTOR,
+            Computed(
+                "to_tsvector('simple', "
+                "coalesce(method, '') || ' ' || "
+                "coalesce(path, '') || ' ' || "
+                "coalesce(body_preview, '') || ' ' || "
+                "coalesce(headers::text, ''))",
+                persisted=True,
+            ),
+            nullable=True,
+        ),
+    )

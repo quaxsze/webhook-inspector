@@ -18,6 +18,9 @@ def main() -> None:
         settings.service_name + "-migrator",
         settings.environment,
         cloud_trace_enabled=settings.cloud_trace_enabled,
+        otlp_endpoint=settings.otlp_endpoint,
+        otlp_headers=settings.otlp_headers,
+        sample_ratio=settings.trace_sample_ratio,
     )
 
     logger.info("starting migration")

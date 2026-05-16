@@ -7,92 +7,37 @@ on:
 
 permissions:
   contents: read
-  id-token: write  # required for WIF
-
-env:
-  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-  GCP_REGION: ${{ vars.GCP_REGION }}
-  ARTIFACT_REPO: webhook-inspector
-  IMAGE_NAME: webhook-inspector
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
+    timeout-minutes: 15
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Set image tag
-        id: tag
-        run: echo "tag=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Authenticate to GCP via WIF
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+      - name: Deploy web (runs Alembic migrations via release_command)
+        run: flyctl deploy --remote-only --config infra/fly/web.fly.toml
 
-      - name: Set up gcloud
-        uses: google-github-actions/setup-gcloud@v2
+      - name: Deploy ingestor
+        run: flyctl deploy --remote-only --config infra/fly/ingestor.fly.toml
 
-      - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/amd64
-          push: true
-          tags: |
-            ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }}
-            ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.IMAGE_NAME }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Update migrator Job image
+      - name: Smoke test
         run: |
-          gcloud run jobs update webhook-inspector-migrator \
-            --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }} \
-            --region=${{ env.GCP_REGION }}
+          set -e
+          APP_URL="https://app.hooktrace.io"
+          INGESTOR_URL="https://hook.hooktrace.io"
 
-      - name: Execute migrations
-        run: |
-          gcloud run jobs execute webhook-inspector-migrator \
-            --region=${{ env.GCP_REGION }} \
-            --wait
+          test "$(curl -s -o /dev/null -w '%{http_code}' ${APP_URL}/health)" = "200" \
+            || { echo "app /health failed"; exit 1; }
+          test "$(curl -s -o /dev/null -w '%{http_code}' ${INGESTOR_URL}/health)" = "200" \
+            || { echo "ingestor /health failed"; exit 1; }
 
-      - name: Set up OpenTofu
-        uses: opentofu/setup-opentofu@v1
-        with:
-          tofu_version: 1.11.7
-
-      - name: Terraform apply (update image_tag)
-        working-directory: infra/terraform
-        env:
-          TF_VAR_project_id: ${{ env.GCP_PROJECT_ID }}
-          TF_VAR_image_tag: ${{ steps.tag.outputs.tag }}
-        run: |
-          tofu init -backend-config="bucket=${{ env.GCP_PROJECT_ID }}-tfstate"
-          tofu apply -auto-approve -target=google_cloud_run_v2_service.ingestor -target=google_cloud_run_v2_service.app -target=google_cloud_run_v2_job.cleaner -target=google_cloud_run_v2_job.migrator
-
-      - name: Smoke test deployed services
-        run: |
-          APP_URL=$(gcloud run services describe webhook-inspector-app --region=${{ env.GCP_REGION }} --format='value(status.url)')
-          INGESTOR_URL=$(gcloud run services describe webhook-inspector-ingestor --region=${{ env.GCP_REGION }} --format='value(status.url)')
-
-          # Services should respond
-          # App root serves the landing page (200), ingestor has no /, so 404
-          test "$(curl -sI ${APP_URL}/ | head -1 | tr -d '\r' | awk '{print $2}')" = "200"
-          test "$(curl -sI ${INGESTOR_URL}/ | head -1 | tr -d '\r' | awk '{print $2}')" = "404"
-
-          # Full flow
           TOKEN=$(curl -sX POST ${APP_URL}/api/endpoints | python3 -c "import sys,json;print(json.load(sys.stdin)['token'])")
           STATUS=$(curl -sX POST ${INGESTOR_URL}/h/${TOKEN} -d 'ci-deploy-smoke' -o /dev/null -w '%{http_code}')
           test "$STATUS" = "200" || { echo "smoke test failed with status $STATUS"; exit 1; }
 
-          echo "Deploy successful. App: $APP_URL"
+          echo "Deploy successful."

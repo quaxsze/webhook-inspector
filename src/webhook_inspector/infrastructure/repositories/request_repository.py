@@ -1,6 +1,7 @@
+from collections.abc import AsyncIterator
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from webhook_inspector.domain.entities.captured_request import CapturedRequest
@@ -28,6 +29,13 @@ class PostgresRequestRepository(RequestRepository):
         )
         self._session.add(row)
         await self._session.flush()
+        # Emit NOTIFY in the SAME transaction. Commit will bundle INSERT + NOTIFY
+        # atomically, so listeners cannot see the notification before the row is
+        # visible.
+        await self._session.execute(
+            text("SELECT pg_notify('new_request', :payload);"),
+            {"payload": f"{request.endpoint_id}:{request.id}"},
+        )
 
     async def find_by_id(self, request_id: UUID) -> CapturedRequest | None:
         stmt = select(RequestTable).where(RequestTable.id == request_id)  # type: ignore[arg-type]  # SQLAlchemy/mypy strict incompat
@@ -39,6 +47,7 @@ class PostgresRequestRepository(RequestRepository):
         endpoint_id: UUID,
         limit: int = 50,
         before_id: UUID | None = None,
+        q: str | None = None,
     ) -> list[CapturedRequest]:
         stmt = (
             select(RequestTable)
@@ -47,17 +56,51 @@ class PostgresRequestRepository(RequestRepository):
             .limit(limit)
         )
 
+        if q:
+            stmt = stmt.where(
+                text("search_vector @@ plainto_tsquery('simple', :q)").bindparams(q=q)
+            )
+
         if before_id is not None:
-            cursor = (
+            cursor_row = (
                 await self._session.execute(
-                    select(RequestTable.received_at).where(RequestTable.id == before_id)  # type: ignore[call-overload]  # SQLAlchemy/mypy strict incompat
+                    select(RequestTable.received_at, RequestTable.id).where(  # type: ignore[call-overload]  # SQLAlchemy/mypy strict incompat
+                        RequestTable.id == before_id
+                    )
                 )
-            ).scalar_one_or_none()
-            if cursor is not None:
-                stmt = stmt.where(RequestTable.received_at < cursor)
+            ).one_or_none()
+            if cursor_row is not None:
+                cursor_ts, cursor_id = cursor_row
+                stmt = stmt.where(
+                    (RequestTable.received_at < cursor_ts)
+                    | ((RequestTable.received_at == cursor_ts) & (RequestTable.id < cursor_id))
+                )
 
         rows = (await self._session.execute(stmt)).scalars().all()
         return [_to_entity(r) for r in rows]
+
+    async def stream_for_export(
+        self,
+        endpoint_id: UUID,
+        max_count: int,
+    ) -> AsyncIterator[CapturedRequest]:
+        stmt = (
+            select(RequestTable)
+            .where(RequestTable.endpoint_id == endpoint_id)  # type: ignore[arg-type]  # SQLAlchemy/mypy strict incompat
+            .order_by(RequestTable.received_at.desc(), RequestTable.id.desc())  # type: ignore[attr-defined]  # SQLAlchemy column descriptors have .desc() at runtime
+            .limit(max_count)
+            .execution_options(yield_per=100)
+        )
+        result = await self._session.stream(stmt)
+        async for row in result.scalars():
+            yield _to_entity(row)
+
+    async def count_by_endpoint(self, endpoint_id: UUID) -> int:
+        stmt = select(func.count(RequestTable.id)).where(  # type: ignore[arg-type]  # SQLAlchemy/mypy strict incompat
+            RequestTable.endpoint_id == endpoint_id  # type: ignore[arg-type]  # SQLAlchemy/mypy strict incompat
+        )
+        result = await self._session.execute(stmt)
+        return int(result.scalar() or 0)
 
 
 def _to_entity(row: RequestTable) -> CapturedRequest:

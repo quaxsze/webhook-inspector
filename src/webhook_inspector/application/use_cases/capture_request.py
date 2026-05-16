@@ -1,17 +1,19 @@
 import logging
+import time
 from dataclasses import dataclass
 
 from webhook_inspector.domain.entities.captured_request import CapturedRequest
+from webhook_inspector.domain.entities.endpoint import Endpoint
+from webhook_inspector.domain.exceptions import EndpointNotFoundError
 from webhook_inspector.domain.ports.blob_storage import BlobStorage
 from webhook_inspector.domain.ports.endpoint_repository import EndpointRepository
-from webhook_inspector.domain.ports.notifier import Notifier
+from webhook_inspector.domain.ports.metrics_collector import MetricsCollector
 from webhook_inspector.domain.ports.request_repository import RequestRepository
 
 logger = logging.getLogger(__name__)
 
-
-class EndpointNotFoundError(Exception):
-    pass
+# Re-export for backward compat with callers that import from this module.
+__all__ = ["CaptureRequest", "EndpointNotFoundError"]
 
 
 @dataclass
@@ -19,8 +21,9 @@ class CaptureRequest:
     endpoint_repo: EndpointRepository
     request_repo: RequestRepository
     blob_storage: BlobStorage
-    notifier: Notifier
     inline_threshold: int
+    metrics: MetricsCollector
+    # notifier dropped — NOTIFY now happens in request_repo.save() transactionally
 
     async def execute(
         self,
@@ -31,7 +34,9 @@ class CaptureRequest:
         headers: dict[str, str],
         body: bytes,
         source_ip: str,
-    ) -> CapturedRequest:
+    ) -> tuple[CapturedRequest, Endpoint]:
+        start = time.monotonic()
+
         endpoint = await self.endpoint_repo.find_by_token(token)
         if endpoint is None:
             raise EndpointNotFoundError(token)
@@ -69,6 +74,13 @@ class CaptureRequest:
 
         await self.request_repo.save(captured)
         await self.endpoint_repo.increment_request_count(endpoint.id)
-        await self.notifier.publish_new_request(endpoint.id, captured.id)
 
-        return captured
+        duration = time.monotonic() - start
+        self.metrics.request_captured(
+            method=captured.method,
+            body_offloaded=captured.blob_key is not None,
+            body_size=captured.body_size,
+            duration_seconds=duration,
+        )
+
+        return captured, endpoint

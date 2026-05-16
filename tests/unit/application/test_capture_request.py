@@ -3,6 +3,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from tests.fakes.metrics_collector import FakeMetricsCollector
 from webhook_inspector.application.use_cases.capture_request import (
     CaptureRequest,
     EndpointNotFoundError,
@@ -11,7 +12,6 @@ from webhook_inspector.domain.entities.captured_request import CapturedRequest
 from webhook_inspector.domain.entities.endpoint import Endpoint
 from webhook_inspector.domain.ports.blob_storage import BlobStorage
 from webhook_inspector.domain.ports.endpoint_repository import EndpointRepository
-from webhook_inspector.domain.ports.notifier import Notifier
 from webhook_inspector.domain.ports.request_repository import RequestRepository
 
 
@@ -35,6 +35,9 @@ class FakeEndpointRepo(EndpointRepository):
     async def delete_expired(self) -> int:
         return 0
 
+    async def count_active(self) -> int:
+        return len([e for e in self.saved if e is not None and not e.is_expired()])
+
 
 class FakeRequestRepo(RequestRepository):
     def __init__(self):
@@ -46,8 +49,15 @@ class FakeRequestRepo(RequestRepository):
     async def find_by_id(self, request_id):
         return next((r for r in self.saved if r.id == request_id), None)
 
-    async def list_by_endpoint(self, endpoint_id, limit=50, before_id=None):
+    async def list_by_endpoint(self, endpoint_id, limit=50, before_id=None, q=None):
         return []
+
+    async def stream_for_export(self, endpoint_id, max_count):
+        for r in [x for x in self.saved if x.endpoint_id == endpoint_id][:max_count]:
+            yield r
+
+    async def count_by_endpoint(self, endpoint_id):
+        return len([r for r in self.saved if r.endpoint_id == endpoint_id])
 
 
 class FakeBlobStorage(BlobStorage):
@@ -62,17 +72,6 @@ class FakeBlobStorage(BlobStorage):
 
     async def get(self, key):
         return self.puts.get(key)
-
-
-class FakeNotifier(Notifier):
-    def __init__(self):
-        self.published: list[tuple[UUID, UUID]] = []
-
-    async def publish_new_request(self, endpoint_id, request_id):
-        self.published.append((endpoint_id, request_id))
-
-    def subscribe(self, endpoint_id):
-        raise NotImplementedError
 
 
 def _make_endpoint() -> Endpoint:
@@ -90,10 +89,9 @@ async def test_capture_small_body_inline():
     erepo = FakeEndpointRepo(ep)
     rrepo = FakeRequestRepo()
     blob = FakeBlobStorage()
-    notifier = FakeNotifier()
-    uc = CaptureRequest(erepo, rrepo, blob, notifier, inline_threshold=8192)
+    uc = CaptureRequest(erepo, rrepo, blob, inline_threshold=8192, metrics=FakeMetricsCollector())
 
-    saved = await uc.execute(
+    _captured, _endpoint = await uc.execute(
         token="abc",
         method="POST",
         path="/h/abc",
@@ -108,7 +106,6 @@ async def test_capture_small_body_inline():
     assert rrepo.saved[0].blob_key is None
     assert blob.puts == {}
     assert erepo.increments == [ep.id]
-    assert notifier.published == [(ep.id, saved.id)]
 
 
 async def test_capture_large_body_uploads_blob():
@@ -116,11 +113,10 @@ async def test_capture_large_body_uploads_blob():
     erepo = FakeEndpointRepo(ep)
     rrepo = FakeRequestRepo()
     blob = FakeBlobStorage()
-    notifier = FakeNotifier()
-    uc = CaptureRequest(erepo, rrepo, blob, notifier, inline_threshold=8192)
+    uc = CaptureRequest(erepo, rrepo, blob, inline_threshold=8192, metrics=FakeMetricsCollector())
 
     big = b"x" * 10000
-    saved = await uc.execute(
+    captured, _endpoint = await uc.execute(
         token="abc",
         method="POST",
         path="/h/abc",
@@ -130,8 +126,8 @@ async def test_capture_large_body_uploads_blob():
         source_ip="192.0.2.1",
     )
 
-    assert saved.blob_key is not None
-    assert blob.puts[saved.blob_key] == big
+    assert captured.blob_key is not None
+    assert blob.puts[captured.blob_key] == big
 
 
 async def test_capture_falls_back_when_blob_storage_fails():
@@ -139,11 +135,10 @@ async def test_capture_falls_back_when_blob_storage_fails():
     erepo = FakeEndpointRepo(ep)
     rrepo = FakeRequestRepo()
     blob = FakeBlobStorage(fail=True)
-    notifier = FakeNotifier()
-    uc = CaptureRequest(erepo, rrepo, blob, notifier, inline_threshold=8192)
+    uc = CaptureRequest(erepo, rrepo, blob, inline_threshold=8192, metrics=FakeMetricsCollector())
 
     big = b"x" * 10000
-    saved = await uc.execute(
+    captured, _endpoint = await uc.execute(
         token="abc",
         method="POST",
         path="/h/abc",
@@ -155,16 +150,15 @@ async def test_capture_falls_back_when_blob_storage_fails():
 
     # Metadata persisted even though blob failed
     assert len(rrepo.saved) == 1
-    assert saved.blob_key is None  # downgraded
-    assert saved.body_size == 10000
+    assert captured.blob_key is None  # downgraded
+    assert captured.body_size == 10000
 
 
 async def test_capture_unknown_token_raises():
     erepo = FakeEndpointRepo()
     rrepo = FakeRequestRepo()
     blob = FakeBlobStorage()
-    notifier = FakeNotifier()
-    uc = CaptureRequest(erepo, rrepo, blob, notifier, inline_threshold=8192)
+    uc = CaptureRequest(erepo, rrepo, blob, inline_threshold=8192, metrics=FakeMetricsCollector())
 
     with pytest.raises(EndpointNotFoundError):
         await uc.execute(
@@ -183,10 +177,9 @@ async def test_capture_uppercases_method():
     erepo = FakeEndpointRepo(ep)
     rrepo = FakeRequestRepo()
     blob = FakeBlobStorage()
-    notifier = FakeNotifier()
-    uc = CaptureRequest(erepo, rrepo, blob, notifier, inline_threshold=8192)
+    uc = CaptureRequest(erepo, rrepo, blob, inline_threshold=8192, metrics=FakeMetricsCollector())
 
-    saved = await uc.execute(
+    captured, _endpoint = await uc.execute(
         token="abc",
         method="post",
         path="/h/abc",
@@ -196,4 +189,36 @@ async def test_capture_uppercases_method():
         source_ip="192.0.2.1",
     )
 
-    assert saved.method == "POST"
+    assert captured.method == "POST"
+
+
+async def test_capture_request_records_metric():
+    ep = _make_endpoint()
+    erepo = FakeEndpointRepo(ep)
+    rrepo = FakeRequestRepo()
+    blob = FakeBlobStorage()
+    metrics = FakeMetricsCollector()
+    uc = CaptureRequest(
+        erepo,
+        rrepo,
+        blob,
+        inline_threshold=8192,
+        metrics=metrics,
+    )
+
+    await uc.execute(
+        token="abc",
+        method="POST",
+        path="/h/abc",
+        query_string=None,
+        headers={},
+        body=b"hi",
+        source_ip="192.0.2.1",
+    )
+
+    assert len(metrics.captured_calls) == 1
+    call = metrics.captured_calls[0]
+    assert call.method == "POST"
+    assert call.body_offloaded is False
+    assert call.body_size == 2
+    assert call.duration_seconds >= 0

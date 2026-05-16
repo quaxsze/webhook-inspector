@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>webhook-inspector — Generate a URL, inspect any webhook live</title>
+  <title>hooktrace — Webhook observability with capture, debug, replay</title>
   <meta name="description" content="Free webhook inspection: generate a URL, point any webhook at it, see requests in real-time. No signup, URLs expire after 7 days.">
 
   <!-- Open Graph / social sharing -->
-  <meta property="og:title" content="webhook-inspector">
+  <meta property="og:title" content="hooktrace">
   <meta property="og:description" content="Generate a URL, point any webhook at it, see requests live in your browser. Free, no signup.">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://app.odessa-inspect.org/">
+  <meta property="og:url" content="https://app.hooktrace.io/">
 
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -20,7 +20,7 @@
   <main class="max-w-2xl mx-auto px-6 py-16">
 
     <header class="mb-12">
-      <h1 class="text-3xl font-bold text-emerald-400 mb-3">webhook-inspector</h1>
+      <h1 class="text-3xl font-bold text-emerald-400 mb-3">hooktrace</h1>
       <p class="text-slate-300 text-lg leading-relaxed">
         Generate a URL, point any webhook at it,<br>
         inspect the requests live in your browser.
@@ -31,19 +31,98 @@
     </header>
 
     <div class="mb-12">
-      <button
-        id="create-btn"
-        hx-post="/api/endpoints"
-        hx-swap="none"
-        hx-on::after-request="if (event.detail.successful) { window.location.href = '/' + JSON.parse(event.detail.xhr.responseText).token; }"
-        class="bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-bold py-3 px-6 rounded transition-colors"
-      >
-        Create a webhook URL &rarr;
-      </button>
-      <p class="text-slate-500 text-xs mt-2">
-        Click &rarr; unique URL generated &rarr; page redirects to live inspector.
-      </p>
+      <form id="create-form" class="space-y-3">
+        <button
+          type="submit"
+          class="bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-bold py-3 px-6 rounded transition-colors"
+        >
+          Create a webhook URL &rarr;
+        </button>
+        <p class="text-slate-500 text-xs">
+          Click &rarr; unique URL generated &rarr; page redirects to live inspector.
+        </p>
+
+        <details class="mt-4 text-sm">
+          <summary class="cursor-pointer text-slate-400 hover:text-slate-300 select-none">
+            Advanced options (default: 200 OK, <code>{"ok":true}</code>, no delay)
+          </summary>
+          <div class="mt-3 space-y-2 bg-slate-800 p-3 rounded">
+            <label class="block">
+              <span class="text-slate-400 text-xs">Vanity URL (optional)</span>
+              <input id="adv-slug" name="slug" type="text"
+                     pattern="[a-z0-9][a-z0-9-]{1,30}[a-z0-9]"
+                     maxlength="32"
+                     placeholder="my-stripe-test"
+                     class="block w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 mt-1 font-mono">
+              <span class="block text-slate-500 text-xs mt-1">3&ndash;32 chars, lowercase letters, digits, hyphens. Leave empty for a random URL.</span>
+            </label>
+            <label class="block">
+              <span class="text-slate-400 text-xs">Status code</span>
+              <input id="adv-status" type="number" min="100" max="599" value="200"
+                     class="block w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 mt-1 font-mono">
+            </label>
+            <label class="block">
+              <span class="text-slate-400 text-xs">Response body</span>
+              <textarea id="adv-body" rows="3"
+                        class="block w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 mt-1 font-mono">{"ok":true}</textarea>
+            </label>
+            <label class="block">
+              <span class="text-slate-400 text-xs">Headers (JSON)</span>
+              <textarea id="adv-headers" rows="2" placeholder='{"Content-Type":"application/json"}'
+                        class="block w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 mt-1 font-mono">{}</textarea>
+            </label>
+            <label class="block">
+              <span class="text-slate-400 text-xs">Response delay (ms, 0-30000)</span>
+              <input id="adv-delay" type="number" min="0" max="30000" value="0"
+                     class="block w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 mt-1 font-mono">
+            </label>
+          </div>
+        </details>
+
+        <div id="create-error" class="text-rose-400 text-sm mt-2"></div>
+      </form>
     </div>
+
+    <script>
+      document.getElementById("create-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const status_code = parseInt(document.getElementById("adv-status").value, 10);
+        const body = document.getElementById("adv-body").value;
+        const delay_ms = parseInt(document.getElementById("adv-delay").value, 10);
+        let headers;
+        try {
+          headers = JSON.parse(document.getElementById("adv-headers").value || "{}");
+        } catch {
+          document.getElementById("create-error").textContent = "Headers must be valid JSON.";
+          return;
+        }
+        const payload = { response: { status_code, body, headers, delay_ms } };
+        const slug = document.getElementById("adv-slug").value.trim();
+        if (slug) {
+          payload.slug = slug;
+        }
+
+        const errEl = document.getElementById("create-error");
+        errEl.textContent = "";
+
+        try {
+          const resp = await fetch("/api/endpoints", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (!resp.ok) {
+            const detail = (await resp.json()).detail || resp.statusText;
+            errEl.textContent = `Error: ${detail}`;
+            return;
+          }
+          const data = await resp.json();
+          window.location.href = `/${data.token}`;
+        } catch (err) {
+          errEl.textContent = `Network error: ${err.message}`;
+        }
+      });
+    </script>
 
     <section class="mb-12">
       <h2 class="text-slate-400 text-sm uppercase tracking-wider mb-4">Use cases</h2>
@@ -58,19 +137,19 @@
     <section class="mb-12 bg-slate-800 rounded p-4 text-sm">
       <h2 class="text-slate-400 text-xs uppercase tracking-wider mb-2">Quick example</h2>
       <pre class="text-slate-300 overflow-x-auto"><code># 1. Click the button above. You get a URL like:
-#    https://hook.odessa-inspect.org/h/AbCdEf...
+#    https://hook.hooktrace.io/h/AbCdEf...
 
 # 2. Use that URL anywhere webhooks are sent. Or curl it:
 curl -X POST -d '{"hello":"world"}' \
-  https://hook.odessa-inspect.org/h/AbCdEf...
+  https://hook.hooktrace.io/h/AbCdEf...
 
 # 3. The browser tab shows the request, live.</code></pre>
     </section>
 
     <footer class="text-slate-500 text-xs border-t border-slate-700 pt-4">
       <p>
-        Built with FastAPI + Cloud Run +
-        <a href="https://github.com/quaxsze/webhook-inspector" class="text-emerald-400 hover:underline">open source</a>.
+        Built with FastAPI + Fly.io +
+        <a href="https://github.com/hooktrace-io/hooktrace" class="text-emerald-400 hover:underline">open source</a>.
       </p>
     </footer>
 

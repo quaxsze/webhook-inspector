@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Question or discussion
-    url: https://github.com/quaxsze/webhook-inspector/discussions
+    url: https://github.com/hooktrace-io/hooktrace/discussions
     about: Ask a question or start a discussion (please don't open issues for general questions).
   - name: Security vulnerability
-    url: https://github.com/quaxsze/webhook-inspector/security/advisories/new
+    url: https://github.com/hooktrace-io/hooktrace/security/advisories/new
     about: Report a security issue privately via GitHub Security Advisories.

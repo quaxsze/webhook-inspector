@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Before opening a feature request, please check the [roadmap](https://github.com/quaxsze/webhook-inspector#roadmap) and existing issues to avoid duplication.
+        Before opening a feature request, please check the [roadmap](https://github.com/hooktrace-io/hooktrace#roadmap) and existing issues to avoid duplication.
 
   - type: textarea
     id: problem

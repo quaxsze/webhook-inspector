@@ -40,7 +40,7 @@ _STDLIB_RESERVED: frozenset[str] = frozenset(
 
 
 def _extract_from_record(
-    logger: Any, method: str, event_dict: MutableMapping[str, Any]
+    _logger: Any, _method: str, event_dict: MutableMapping[str, Any]
 ) -> MutableMapping[str, Any]:
     """Copy extra fields (including filter-injected ones) from LogRecord into event_dict."""
     record = event_dict.get("_record")

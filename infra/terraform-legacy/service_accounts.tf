@@ -55,3 +55,19 @@ resource "google_project_iam_member" "trace_writer" {
   role    = "roles/cloudtrace.agent"
   member  = "serviceAccount:${each.value}"
 }
+
+# Cloud Monitoring write access for runtime SAs (metrics export)
+locals {
+  monitoring_writer_sas = [
+    google_service_account.ingestor.email,
+    google_service_account.app.email,
+    google_service_account.cleaner.email,
+  ]
+}
+
+resource "google_project_iam_member" "monitoring_writer" {
+  for_each = toset(local.monitoring_writer_sas)
+  project  = var.project_id
+  role     = "roles/monitoring.metricWriter"
+  member   = "serviceAccount:${each.value}"
+}

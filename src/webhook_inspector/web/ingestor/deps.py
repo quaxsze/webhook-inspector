@@ -2,6 +2,7 @@ from collections.abc import AsyncIterator
 from functools import lru_cache
 
 from fastapi import Depends
+from opentelemetry.metrics import Meter
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -12,7 +13,7 @@ from sqlalchemy.ext.asyncio import (
 from webhook_inspector.application.use_cases.capture_request import CaptureRequest
 from webhook_inspector.config import Settings
 from webhook_inspector.domain.ports.blob_storage import BlobStorage
-from webhook_inspector.infrastructure.notifications.postgres_notifier import PostgresNotifier
+from webhook_inspector.domain.ports.metrics_collector import MetricsCollector
 from webhook_inspector.infrastructure.repositories.endpoint_repository import (
     PostgresEndpointRepository,
 )
@@ -43,6 +44,22 @@ def _blob_storage() -> BlobStorage:
     return make_blob_storage(get_settings())
 
 
+@lru_cache(maxsize=1)
+def _meter() -> Meter:
+    import opentelemetry.metrics as otel_metrics
+
+    return otel_metrics.get_meter("webhook-inspector-ingestor")
+
+
+@lru_cache(maxsize=1)
+def get_metrics() -> MetricsCollector:
+    from webhook_inspector.infrastructure.observability.otel_metrics_collector import (
+        OtelMetricsCollector,
+    )
+
+    return OtelMetricsCollector(_meter())
+
+
 async def get_session() -> AsyncIterator[AsyncSession]:
     factory = _session_factory()
     async with factory() as s:
@@ -54,28 +71,14 @@ async def get_session() -> AsyncIterator[AsyncSession]:
             raise
 
 
-_notifier: PostgresNotifier | None = None
-
-
-async def get_notifier() -> PostgresNotifier:
-    global _notifier
-    if _notifier is None:
-        settings = get_settings()
-        sync_dsn = settings.database_url.replace("+psycopg_async", "").replace("+psycopg", "")
-        _notifier = PostgresNotifier(dsn=sync_dsn)
-        await _notifier.start()
-    return _notifier
-
-
 async def get_capture_request(
     session: AsyncSession = Depends(get_session),  # noqa: B008
     settings: Settings = Depends(get_settings),  # noqa: B008
-    notifier: PostgresNotifier = Depends(get_notifier),  # noqa: B008
 ) -> CaptureRequest:
     return CaptureRequest(
         endpoint_repo=PostgresEndpointRepository(session),
         request_repo=PostgresRequestRepository(session),
         blob_storage=_blob_storage(),
-        notifier=notifier,
         inline_threshold=settings.body_inline_threshold_bytes,
+        metrics=get_metrics(),
     )

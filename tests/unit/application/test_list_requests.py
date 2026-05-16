@@ -28,6 +28,9 @@ class FakeEndpointRepo(EndpointRepository):
     async def delete_expired(self) -> int:
         return 0
 
+    async def count_active(self) -> int:
+        return 0
+
 
 class FakeRequestRepo(RequestRepository):
     def __init__(self, items):
@@ -37,8 +40,15 @@ class FakeRequestRepo(RequestRepository):
     async def find_by_id(self, i):
         return next((r for r in self.items if r.id == i), None)
 
-    async def list_by_endpoint(self, endpoint_id, limit=50, before_id=None):
+    async def list_by_endpoint(self, endpoint_id, limit=50, before_id=None, q=None):
         return [r for r in self.items if r.endpoint_id == endpoint_id][:limit]
+
+    async def stream_for_export(self, endpoint_id, max_count):
+        for r in [x for x in self.items if x.endpoint_id == endpoint_id][:max_count]:
+            yield r
+
+    async def count_by_endpoint(self, endpoint_id):
+        return len([r for r in self.items if r.endpoint_id == endpoint_id])
 
 
 def _ep() -> Endpoint:
@@ -83,3 +93,41 @@ async def test_list_unknown_token_raises():
     uc = ListRequests(FakeEndpointRepo(None), FakeRequestRepo([]))
     with pytest.raises(EndpointNotFoundError):
         await uc.execute(token="missing", limit=50)
+
+
+async def test_forwards_q_param_to_repo():
+    """Use case forwards q to the request repository."""
+    captured_q: list[str | None] = []
+
+    class CapturingRepo(FakeRequestRepo):
+        async def list_by_endpoint(self, endpoint_id, limit=50, before_id=None, q=None):
+            captured_q.append(q)
+            return []
+
+    ep = _ep()
+    endpoint_repo = FakeEndpointRepo(ep)
+    req_repo = CapturingRepo([])
+    use_case = ListRequests(endpoint_repo=endpoint_repo, request_repo=req_repo)
+
+    await use_case.execute(token="abc", q="stripe")
+
+    assert captured_q == ["stripe"]
+
+
+async def test_q_defaults_to_none_when_not_provided():
+    """If caller doesn't pass q, repo receives None."""
+    captured_q: list[str | None] = []
+
+    class CapturingRepo(FakeRequestRepo):
+        async def list_by_endpoint(self, endpoint_id, limit=50, before_id=None, q=None):
+            captured_q.append(q)
+            return []
+
+    ep = _ep()
+    endpoint_repo = FakeEndpointRepo(ep)
+    req_repo = CapturingRepo([])
+    use_case = ListRequests(endpoint_repo=endpoint_repo, request_repo=req_repo)
+
+    await use_case.execute(token="abc")
+
+    assert captured_q == [None]

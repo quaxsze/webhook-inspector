@@ -1,13 +1,61 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+import asyncio
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from webhook_inspector.application.use_cases.capture_request import (
     CaptureRequest,
     EndpointNotFoundError,
 )
 from webhook_inspector.config import Settings
-from webhook_inspector.web.ingestor.deps import get_capture_request, get_settings
+from webhook_inspector.web.ingestor.deps import (
+    _blob_storage,
+    get_capture_request,
+    get_session,
+    get_settings,
+)
 
 router = APIRouter()
+
+
+@router.get("/health")
+async def healthz(
+    session: AsyncSession = Depends(get_session),  # noqa: B008
+) -> JSONResponse:
+    """Deep health check: pings DB and verifies blob storage is reachable."""
+    checks: dict[str, str] = {}
+    overall_ok = True
+
+    try:
+        await session.execute(text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception as e:  # noqa: BLE001
+        checks["database"] = f"error: {type(e).__name__}"
+        overall_ok = False
+
+    try:
+        storage = _blob_storage()
+        # Unique probe key per invocation: the ingestor SA has
+        # roles/storage.objectCreator (write-only, no overwrite, no read), so
+        # we must always CREATE — never UPDATE — and skip the readback. The
+        # bucket's 7-day lifecycle rule garbage-collects accumulated probes.
+        probe_key = f"_healthz_probe/{uuid.uuid4().hex}"
+        await storage.put(probe_key, b"ok")
+        checks["blob_storage"] = "ok"
+    except Exception as e:  # noqa: BLE001
+        checks["blob_storage"] = f"error: {type(e).__name__}"
+        overall_ok = False
+
+    return JSONResponse(
+        status_code=200 if overall_ok else 503,
+        content={
+            "status": "healthy" if overall_ok else "unhealthy",
+            "checks": checks,
+        },
+    )
 
 
 @router.api_route(
@@ -20,7 +68,7 @@ async def capture(
     request: Request,
     use_case: CaptureRequest = Depends(get_capture_request),  # noqa: B008
     settings: Settings = Depends(get_settings),  # noqa: B008
-) -> dict[str, bool]:
+) -> Response:
     content_length = request.headers.get("content-length")
     if content_length and int(content_length) > settings.max_body_bytes:
         raise HTTPException(status_code=413, detail="payload too large")
@@ -30,7 +78,7 @@ async def capture(
         raise HTTPException(status_code=413, detail="payload too large")
 
     try:
-        await use_case.execute(
+        _captured, endpoint = await use_case.execute(
             token=token,
             method=request.method,
             path=f"/h/{token}{rest}",
@@ -42,4 +90,11 @@ async def capture(
     except EndpointNotFoundError as e:
         raise HTTPException(status_code=404, detail="endpoint not found") from e
 
-    return {"ok": True}
+    if endpoint.response_delay_ms > 0:
+        await asyncio.sleep(endpoint.response_delay_ms / 1000)
+
+    return Response(
+        content=endpoint.response_body,
+        status_code=endpoint.response_status_code,
+        headers=endpoint.response_headers or None,
+    )

@@ -1,6 +1,15 @@
-# Infrastructure — webhook-inspector (Phase B)
+# Terraform legacy (GCP — decommissioned 2026-05-15)
 
-Terraform module deploying webhook-inspector to GCP in a single `dev` env.
+> **⚠️ This directory is archived.** Production runs on Fly.io since 2026-05-15.
+> The configuration here is kept as a reference of how the GCP deployment
+> looked. **Do not run `tofu apply` from here** — the corresponding GCP
+> resources have all been destroyed and the state bucket is unused.
+>
+> Current infra : `infra/fly/`.
+
+---
+
+Terraform module that previously deployed webhook-inspector to GCP in a single `dev` env.
 
 > This project uses [OpenTofu](https://opentofu.org/) (the BSL-free fork of Terraform). All HCL is fully compatible with Terraform >= 1.6 if you prefer.
 
@@ -84,6 +93,38 @@ To re-do the DNS setup:
 4. `gcloud domains verify <domain>` once (manual, interactive)
 5. `tofu apply` — creates Cloud Run domain mappings + Cloudflare CNAMEs
 6. Wait 5-30 min for Google-managed TLS certs to provision
+
+## Monitoring & alerting
+
+Dashboard URL (after `tofu apply`):
+
+```bash
+cd infra/terraform
+tofu output dashboard_url
+```
+
+Alerts active :
+
+- **High p95 ingest latency** — capture_duration p95 > 1s for 5 min
+- **High 5xx rate (ingestor)** — Cloud Run 5xx requests > threshold for 5 min
+- **Cloud SQL CPU > 70% sustained (10min)** — tier-upgrade signal (db-f1-micro → db-custom-1-1740)
+- **Cloud SQL query latency p95 > 200ms (5min)** — tier-upgrade signal; relies on Cloud SQL Insights (enabled in `cloudsql.tf`)
+- **Cloud SQL disk pressure** — disk > 90%
+- **Cleaner stale** — no heartbeat in 26h
+
+All routed to `owner_email` via a single notification channel.
+
+### Manual drill
+
+Force a 5xx surge to validate the alert :
+
+```bash
+# Temporarily disable Cloud SQL (returns 5xx on every ingest)
+gcloud sql instances patch webhook-inspector-pg-dev --activation-policy=NEVER
+sleep 300  # 5 min — let the alert fire
+# Check email + alert console
+gcloud sql instances patch webhook-inspector-pg-dev --activation-policy=ALWAYS
+```
 
 ## Tearing down
 

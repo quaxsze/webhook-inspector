@@ -5,6 +5,7 @@ from fastapi import FastAPI
 
 from webhook_inspector.config import Settings
 from webhook_inspector.observability.logging import configure_logging
+from webhook_inspector.observability.metrics import configure_metrics
 from webhook_inspector.observability.tracing import configure_tracing, instrument_app
 from webhook_inspector.web.ingestor.deps import _engine
 from webhook_inspector.web.ingestor.routes import router
@@ -15,7 +16,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = Settings()
     configure_logging(settings.log_level, settings.service_name + "-ingestor")
     configure_tracing(
-        settings.service_name + "-ingestor", settings.environment, settings.cloud_trace_enabled
+        settings.service_name + "-ingestor",
+        settings.environment,
+        cloud_trace_enabled=settings.cloud_trace_enabled,
+        otlp_endpoint=settings.otlp_endpoint,
+        otlp_headers=settings.otlp_headers,
+        sample_ratio=settings.trace_sample_ratio,
+    )
+    configure_metrics(
+        service_name=settings.service_name + "-ingestor",
+        cloud_metrics_enabled=settings.cloud_metrics_enabled,
+        otlp_endpoint=settings.otlp_endpoint,
+        otlp_headers=settings.otlp_headers,
     )
     instrument_app(app, _engine())
     yield

@@ -1,8 +1,5 @@
-# Reuse cleaner SA — same DB access pattern (read schema + write migrations).
-# Note: alembic_version requires INSERT, so the SA needs cloudsql.client.
-
-resource "google_cloud_run_v2_job" "migrator" {
-  name     = "${local.name_prefix}-migrator"
+resource "google_cloud_run_v2_job" "cleaner" {
+  name     = local.cleaner_job_name
   location = var.region
 
   template {
@@ -16,7 +13,7 @@ resource "google_cloud_run_v2_job" "migrator" {
         image = "${var.region}-docker.pkg.dev/${var.project_id}/${local.artifact_repo_name}/webhook-inspector:${var.image_tag}"
 
         command = ["python"]
-        args    = ["-m", "webhook_inspector.jobs.migrator"]
+        args    = ["-m", "webhook_inspector.jobs.cleaner"]
 
         resources {
           limits = {
@@ -43,7 +40,15 @@ resource "google_cloud_run_v2_job" "migrator" {
           value = "INFO"
         }
         env {
+          name  = "ENDPOINT_TTL_DAYS"
+          value = tostring(var.endpoint_ttl_days)
+        }
+        env {
           name  = "CLOUD_TRACE_ENABLED"
+          value = "true"
+        }
+        env {
+          name  = "CLOUD_METRICS_ENABLED"
           value = "true"
         }
       }
@@ -60,14 +65,7 @@ resource "google_cloud_run_v2_job" "migrator" {
   depends_on = [
     google_project_iam_member.cloudsql_client,
     google_project_iam_member.trace_writer,
+    google_project_iam_member.monitoring_writer,
     google_secret_manager_secret_iam_member.database_url_cleaner,
   ]
-}
-
-# Allow deployer SA to invoke the migrator job
-resource "google_cloud_run_v2_job_iam_member" "migrator_deployer_invoker" {
-  location = google_cloud_run_v2_job.migrator.location
-  name     = google_cloud_run_v2_job.migrator.name
-  role     = "roles/run.invoker"
-  member   = "serviceAccount:${google_service_account.deployer.email}"
 }

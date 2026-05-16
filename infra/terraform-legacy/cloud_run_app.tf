@@ -1,14 +1,15 @@
-resource "google_cloud_run_v2_service" "ingestor" {
-  name     = local.ingestor_service_name
-  location = var.region
-  ingress  = "INGRESS_TRAFFIC_ALL"
+resource "google_cloud_run_v2_service" "app" {
+  name                = local.app_service_name
+  location            = var.region
+  ingress             = "INGRESS_TRAFFIC_ALL"
+  deletion_protection = false
 
   template {
-    service_account = google_service_account.ingestor.email
+    service_account = google_service_account.app.email
 
     scaling {
-      min_instance_count = var.ingestor_min_instances
-      max_instance_count = var.ingestor_max_instances
+      min_instance_count = var.app_min_instances
+      max_instance_count = var.app_max_instances
     }
 
     containers {
@@ -16,7 +17,7 @@ resource "google_cloud_run_v2_service" "ingestor" {
 
       command = ["uvicorn"]
       args = [
-        "webhook_inspector.web.ingestor.main:app",
+        "webhook_inspector.web.app.main:app",
         "--host", "0.0.0.0",
         "--port", "8080",
       ]
@@ -30,7 +31,7 @@ resource "google_cloud_run_v2_service" "ingestor" {
           cpu    = "1000m"
           memory = "512Mi"
         }
-        cpu_idle = true
+        cpu_idle = false # min=1, keep CPU warm for SSE
         startup_cpu_boost = true
       }
 
@@ -43,7 +44,6 @@ resource "google_cloud_run_v2_service" "ingestor" {
           }
         }
       }
-
       env {
         name  = "BLOB_STORAGE_BACKEND"
         value = "gcs"
@@ -61,11 +61,11 @@ resource "google_cloud_run_v2_service" "ingestor" {
         value = "INFO"
       }
       env {
-        name  = "ENDPOINT_TTL_DAYS"
-        value = tostring(var.endpoint_ttl_days)
+        name  = "CLOUD_TRACE_ENABLED"
+        value = "true"
       }
       env {
-        name  = "CLOUD_TRACE_ENABLED"
+        name  = "CLOUD_METRICS_ENABLED"
         value = "true"
       }
     }
@@ -86,15 +86,15 @@ resource "google_cloud_run_v2_service" "ingestor" {
   depends_on = [
     google_project_iam_member.cloudsql_client,
     google_project_iam_member.trace_writer,
-    google_secret_manager_secret_iam_member.database_url_ingestor,
-    google_storage_bucket_iam_member.ingestor_writer,
+    google_project_iam_member.monitoring_writer,
+    google_secret_manager_secret_iam_member.database_url_app,
+    google_storage_bucket_iam_member.app_reader,
   ]
 }
 
-# Allow unauthenticated invocations (public webhook endpoint)
-resource "google_cloud_run_v2_service_iam_member" "ingestor_public" {
-  location = google_cloud_run_v2_service.ingestor.location
-  name     = google_cloud_run_v2_service.ingestor.name
+resource "google_cloud_run_v2_service_iam_member" "app_public" {
+  location = google_cloud_run_v2_service.app.location
+  name     = google_cloud_run_v2_service.app.name
   role     = "roles/run.invoker"
   member   = "allUsers"
 }

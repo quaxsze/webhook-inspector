@@ -1,10 +1,12 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from webhook_inspector.domain.entities.endpoint import Endpoint
+from webhook_inspector.domain.exceptions import SlugAlreadyTakenError
 from webhook_inspector.domain.ports.endpoint_repository import EndpointRepository
 from webhook_inspector.infrastructure.database.models import EndpointTable
 
@@ -20,9 +22,18 @@ class PostgresEndpointRepository(EndpointRepository):
             created_at=endpoint.created_at,
             expires_at=endpoint.expires_at,
             request_count=endpoint.request_count,
+            response_status_code=endpoint.response_status_code,
+            response_body=endpoint.response_body,
+            response_headers=endpoint.response_headers,
+            response_delay_ms=endpoint.response_delay_ms,
         )
         self._session.add(row)
-        await self._session.flush()
+        try:
+            await self._session.flush()
+        except IntegrityError as e:
+            raise SlugAlreadyTakenError(
+                f"endpoint with token '{endpoint.token}' already exists"
+            ) from e
 
     async def find_by_token(self, token: str) -> Endpoint | None:
         stmt = select(EndpointTable).where(EndpointTable.token == token)  # type: ignore[arg-type]  # SQLAlchemy/mypy strict incompat
@@ -47,6 +58,13 @@ class PostgresEndpointRepository(EndpointRepository):
         result = await self._session.execute(stmt)
         return result.rowcount or 0  # type: ignore[attr-defined]  # CursorResult has rowcount at runtime
 
+    async def count_active(self) -> int:
+        stmt = select(func.count(EndpointTable.id)).where(  # type: ignore[arg-type]
+            EndpointTable.expires_at > datetime.now(UTC)  # type: ignore[arg-type]
+        )
+        result = await self._session.execute(stmt)
+        return int(result.scalar() or 0)
+
 
 def _to_entity(row: EndpointTable) -> Endpoint:
     return Endpoint(
@@ -55,4 +73,8 @@ def _to_entity(row: EndpointTable) -> Endpoint:
         created_at=row.created_at,
         expires_at=row.expires_at,
         request_count=row.request_count,
+        response_status_code=row.response_status_code,
+        response_body=row.response_body,
+        response_headers=row.response_headers,
+        response_delay_ms=row.response_delay_ms,
     )

@@ -5,6 +5,8 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .coverage
+.coverage.*
+coverage.xml
 htmlcov/
 *.egg-info/
 dist/
@@ -14,11 +16,15 @@ build/
 blobs/
 .DS_Store
 
-# Terraform
-infra/terraform/.terraform/
-infra/terraform/.terraform.lock.hcl
-infra/terraform/terraform.tfvars
-infra/terraform/*.tfstate
-infra/terraform/*.tfstate.backup
-infra/terraform/crash.log
-infra/terraform/*.out
+# IDE
+.idea/
+.vscode/
+
+# Terraform / OpenTofu (covers infra/terraform/ AND infra/terraform-legacy/)
+infra/terraform*/.terraform/
+infra/terraform*/.terraform.lock.hcl
+infra/terraform*/terraform.tfvars
+infra/terraform*/*.tfstate
+infra/terraform*/*.tfstate.backup
+infra/terraform*/crash.log
+infra/terraform*/*.out

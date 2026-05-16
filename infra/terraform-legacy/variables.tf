@@ -24,7 +24,7 @@ variable "image_tag" {
 variable "db_tier" {
   type        = string
   default     = "db-f1-micro"
-  description = "Cloud SQL instance tier."
+  description = "Cloud SQL instance tier. Stay on db-f1-micro until sustained traffic reaches ~10x current baseline; bump to db-custom-1-1740 (1 vCPU / 1.7 GB) when query latency p95 exceeds 200ms or CPU stays above 70%."
 }
 
 variable "endpoint_ttl_days" {
@@ -76,4 +76,10 @@ variable "cloudflare_zone_id" {
   type        = string
   default     = ""
   description = "Cloudflare Zone ID of the domain (from the dashboard Overview page). Empty for CI runs."
+}
+
+variable "owner_email" {
+  type        = string
+  default     = ""
+  description = "Email address that receives alert notifications. Empty when running tofu apply in CI (deploy workflow only targets Cloud Run resources, not the email notification channel). Set in terraform.tfvars locally."
 }

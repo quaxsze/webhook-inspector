@@ -18,7 +18,7 @@ async def test_landing_page_renders_at_root(monkeypatch, database_url, engine):
         resp = await c.get("/")
         assert resp.status_code == 200
         body = resp.text
-        assert "webhook-inspector" in body
+        assert "hooktrace" in body
         assert "Create a webhook URL" in body
         assert "/api/endpoints" in body  # the htmx hx-post target
         assert resp.headers["content-type"].startswith("text/html")
